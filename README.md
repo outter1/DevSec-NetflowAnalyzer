@@ -1,4 +1,4 @@
-# FlowWatch - NetFlow Analyzer
+# DevSec - NetFlow Analyzer
 
 ![Status](https://img.shields.io/badge/status-em%20desenvolvimento-blue)
 ![Python](https://img.shields.io/badge/Python-3.12-blue)
