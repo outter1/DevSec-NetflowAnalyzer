@@ -2,123 +2,475 @@
 
 ![Status](https://img.shields.io/badge/status-funcional-brightgreen)
 ![Python](https://img.shields.io/badge/Python-3.12-blue)
-![Interface](https://img.shields.io/badge/Interface-CustomTkinter-darkgreen)
-![Security](https://img.shields.io/badge/Area-Blue%20Team%20%7C%20Forense%20%7C%20Red%20Team-red)
+![Interface](https://img.shields.io/badge/Interface-CustomTkinter-2f855a)
+![Database](https://img.shields.io/badge/Database-SQLite-orange)
+![Security](https://img.shields.io/badge/Área-Blue%20Team%20%7C%20Forense%20%7C%20Red%20Team-red)
+![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-lightgrey)
 
-## Sobre o projeto
+---
 
-O **DevSec / FlowWatch NetFlow Analyzer** é uma plataforma desktop desenvolvida em Python para
-análise de fluxos de rede, inspirada em soluções de monitoramento baseadas em **NetFlow**,
-**Blue Team**, **Forense Digital** e **Análise de Tráfego** — um mini SIEM local.
+## Visão geral
 
-Captura pacotes → transforma em fluxos → exibe origem, destino, portas, protocolo, bytes e
-pacotes → detecta comportamento suspeito → gera alertas → classifica IPs → permite bloqueio
-manual no firewall → ajuda na investigação forense.
+O **DevSec - NetFlow Analyzer** é uma plataforma desktop de análise de tráfego de rede desenvolvida em **Python**, com foco em **Blue Team**, **Forense Digital**, **Redes** e **Resposta a Incidentes**.
+
+A proposta do projeto é funcionar como um **mini SIEM local**, capaz de capturar pacotes da rede, transformar esses pacotes em fluxos, identificar comportamentos suspeitos, gerar alertas, classificar IPs e permitir ações manuais de resposta, como whitelist e bloqueio no firewall.
+
+```text
+Captura de pacotes
+        ↓
+Conversão em fluxos
+        ↓
+Análise de IPs, portas e protocolos
+        ↓
+Detecção de comportamento suspeito
+        ↓
+Geração de alertas
+        ↓
+Classificação de IPs
+        ↓
+Bloqueio manual / investigação / relatório
+```
+
+---
+
+## Objetivo do projeto
+
+O objetivo do **DevSec** é oferecer uma ferramenta local para auxiliar na visibilidade da rede, permitindo que o analista entenda:
+
+- quais IPs estão se comunicando;
+- quais portas estão sendo acessadas;
+- quais protocolos estão em uso;
+- quais hosts podem estar gerando tráfego suspeito;
+- quais IPs precisam ser investigados;
+- quais eventos devem ser registrados como evidência.
+
+O projeto une conceitos de:
+
+| Área | Aplicação no projeto |
+|---|---|
+| **Blue Team** | Monitoramento, alertas e resposta a eventos |
+| **Forense Digital** | Investigação de conexões, horários, IPs e evidências |
+| **Red Team** | Testes controlados com Nmap, scans e tráfego suspeito |
+| **Redes** | Análise de IPs, portas, protocolos e fluxos |
+| **Desenvolvimento** | Interface desktop, banco de dados, relatórios e automação |
+
+---
+
+## Funcionalidades principais
+
+### Dashboard
+
+Visão geral do ambiente monitorado:
+
+- total de fluxos capturados;
+- quantidade de IPs suspeitos;
+- quantidade de IPs bloqueados;
+- status da captura;
+- resumo operacional da ferramenta.
+
+---
+
+### Captura de tráfego
+
+A tela de captura exibe os fluxos de rede em tempo real, com informações como:
+
+- IP de origem;
+- IP de destino;
+- porta de origem;
+- porta de destino;
+- protocolo;
+- quantidade de pacotes;
+- quantidade de bytes;
+- horário da última comunicação.
+
+Também possui filtros por:
+
+- IP;
+- porta;
+- protocolo.
+
+---
+
+### Alertas e classificação
+
+O sistema identifica automaticamente conexões em portas sensíveis e registra IPs suspeitos.
+
+Na tela de alertas, o analista pode:
+
+- classificar IP como normal;
+- marcar IP como crítico;
+- adicionar IP à whitelist;
+- bloquear IP no firewall;
+- remover bloqueio;
+- exportar relatório de investigação.
+
+---
+
+### Detecção de portas sensíveis
+
+| Porta | Serviço | Severidade padrão |
+|---|---|---|
+| 22 | SSH | Médio |
+| 23 | Telnet | Alto |
+| 445 | SMB | Alto |
+| 3389 | RDP | Alto |
+
+Exemplo de alerta:
+
+```text
+[15:58:03] [ALTO] Conexão RDP detectada: 192.168.0.10 -> 192.168.0.1:3389
+```
+
+---
+
+### Detecção de Port Scan
+
+O sistema também possui detecção de varredura de portas.
+
+Quando um mesmo IP acessa várias portas diferentes em um curto período de tempo, o sistema gera um alerta crítico.
+
+Exemplo:
+
+```text
+[16:02:11] [CRÍTICO] Possível varredura de portas: 192.168.0.20 acessou 18 portas diferentes em 10s
+```
+
+Teste controlado com Nmap:
+
+```bash
+nmap -p 1-1000 <ip-alvo>
+```
+
+---
+
+### Dispositivos
+
+A tela de dispositivos permite visualizar hosts identificados pela ferramenta, incluindo informações como:
+
+- IP;
+- hostname;
+- status;
+- origem da descoberta;
+- atividade observada.
+
+Também há suporte para descoberta ativa usando ARP scan.
+
+---
+
+### Relatórios
+
+O projeto possui exportação de dados para fins de documentação e investigação.
+
+Formatos suportados:
+
+- CSV;
+- PDF.
+
+Relatórios possíveis:
+
+- fluxos capturados;
+- alertas gerados;
+- IPs suspeitos;
+- relatório geral de investigação.
+
+---
+
+### Configurações
+
+A tela de configurações permite ajustar regras importantes do sistema, como:
+
+- interface de rede;
+- portas sensíveis monitoradas;
+- limite para detecção de port scan;
+- janela de tempo para detecção;
+- parâmetros persistidos no banco SQLite.
 
 ---
 
 ## Arquitetura do projeto
 
-```
+```text
 DevSec-NetflowAnalyzer/
-├── main.py                     # ponto de entrada
-├── requirements.txt
-├── devsec_netflow.db           # criado automaticamente na 1ª execução (SQLite)
+│
+├── main.py                         # Ponto de entrada da aplicação
+├── requirements.txt                # Dependências do projeto
+├── devsec_netflow.db               # Banco SQLite criado automaticamente
 │
 ├── capture/
-│   ├── packet_capture.py       # captura real com Scapy, em thread separada
-│   ├── flow_analyzer.py        # converte pacotes em fluxos agregados
-│   └── detector.py             # detecção de portas sensíveis + varredura de portas
+│   ├── packet_capture.py           # Captura real com Scapy
+│   ├── flow_analyzer.py            # Conversão de pacotes em fluxos
+│   └── detector.py                 # Regras de detecção
 │
 ├── database/
-│   ├── models.py                # schema SQL (CREATE TABLE)
-│   └── database.py              # camada de persistência (fluxos, alertas, log, devices...)
+│   ├── models.py                   # Estrutura SQL das tabelas
+│   └── database.py                 # Persistência de fluxos, alertas e logs
 │
 ├── reports/
-│   └── export.py                # exportação CSV e PDF (reportlab)
+│   └── export.py                   # Exportação de relatórios CSV/PDF
 │
 └── ui/
-    ├── main_window.py            # orquestrador: menu lateral + tela de Captura
-    ├── dashboard.py               # tela Dashboard
-    ├── alerts.py                  # tela Alertas
-    ├── devices.py                 # tela Dispositivos (+ ARP scan)
-    ├── reports.py                 # tela Relatórios
-    └── settings.py                # tela Configurações
+    ├── main_window.py              # Janela principal e menu lateral
+    ├── dashboard.py                # Tela Dashboard
+    ├── alerts.py                   # Tela de Alertas
+    ├── devices.py                  # Tela de Dispositivos
+    ├── reports.py                  # Tela de Relatórios
+    ├── settings.py                 # Tela de Configurações
+    └── theme.py                    # Paleta visual da interface
 ```
 
 ---
 
 ## Tecnologias utilizadas
 
-- **Python 3.12**
-- **CustomTkinter** / Tkinter / ttk
-- **Scapy** (captura de pacotes) + **Npcap** no Windows
-- **SQLite** (`sqlite3`, biblioteca padrão) para histórico e investigação
-- **ReportLab** para geração de relatórios em PDF
-- Threading + Queue para não travar a interface durante a captura
+| Tecnologia | Uso no projeto |
+|---|---|
+| **Python 3.12** | Linguagem principal |
+| **CustomTkinter** | Interface gráfica moderna |
+| **Tkinter / ttk** | Componentes visuais e tabelas |
+| **Scapy** | Captura e análise de pacotes |
+| **SQLite** | Persistência local dos dados |
+| **ReportLab** | Geração de relatórios PDF |
+| **Threading** | Execução paralela sem travar a interface |
+| **Queue** | Comunicação segura entre threads |
+| **Npcap** | Captura de pacotes no Windows |
+| **libpcap** | Captura de pacotes no Linux |
 
 ---
 
-## Funcionalidades
+## Banco de dados
 
-- Interface desktop com menu lateral e 6 telas: Dashboard, Captura, Alertas, Dispositivos,
-  Relatórios e Configurações;
-- Captura real de pacotes com Scapy, convertidos em fluxos (IP origem/destino, portas,
-  protocolo, pacotes, bytes, horário);
-- **Persistência em SQLite**: fluxos, alertas, log bruto de eventos, IPs bloqueados,
-  whitelist, dispositivos e configurações sobrevivem a reinícios do programa;
-- Filtros por IP, porta e protocolo na tela de Captura;
-- Detecção de portas sensíveis (SSH, Telnet, SMB, RDP — configurável na tela de
-  Configurações, pode adicionar/remover portas);
-- **Detecção de varredura de portas (port scan)**: se um IP acessa muitas portas
-  distintas em pouco tempo, gera alerta CRÍTICO automaticamente — dá pra testar de
-  propósito com `nmap -p 1-1000 <alvo>` (lado Red Team do projeto);
-- Tela de Alertas: classificar IP como normal/crítico, whitelist, bloquear/desbloquear
-  no Windows Firewall (via `netsh`), exportar relatório de investigação do IP em PDF;
-- Tela de Dispositivos: hosts vistos passivamente nos fluxos, descoberta ativa via
-  ARP scan e resolução de hostname;
-- Tela de Relatórios: exporta fluxos e alertas em CSV, e um relatório geral em PDF;
-- Tela de Configurações: interface de rede, portas sensíveis monitoradas, limite e
-  janela de tempo da detecção de varredura de portas — tudo persistido e aplicado
-  em tempo real, sem precisar reiniciar o programa.
+O projeto utiliza **SQLite** para manter histórico de investigação.
+
+Dados persistidos:
+
+- fluxos de rede;
+- alertas;
+- dispositivos;
+- IPs bloqueados;
+- whitelist;
+- configurações;
+- logs de eventos.
+
+O banco é criado automaticamente na primeira execução:
+
+```text
+devsec_netflow.db
+```
+
+A persistência foi otimizada para evitar travamentos na interface, usando:
+
+- gravação em lote;
+- fila de persistência;
+- thread separada;
+- modo WAL do SQLite.
 
 ---
 
-## Como rodar
+## Instalação
+
+### 1. Clone o repositório
+
+```bash
+git clone https://github.com/seu-usuario/DevSec-NetflowAnalyzer.git
+```
+
+### 2. Entre na pasta
+
+```bash
+cd DevSec-NetflowAnalyzer
+```
+
+### 3. Crie um ambiente virtual
+
+#### Windows
+
+```bash
+python -m venv .venv
+.venv\Scripts\activate
+```
+
+#### Linux
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+### 4. Instale as dependências
 
 ```bash
 pip install -r requirements.txt
+```
+
+---
+
+## Execução
+
+```bash
 python main.py
 ```
 
-> A captura real de pacotes normalmente exige privilégios de administrador/root
-> (e, no Windows, o **Npcap** instalado). Sem privilégios elevados, a captura falha
-> e a thread reporta o erro na caixa de alertas — o restante do app (dashboard,
-> alertas, dispositivos, relatórios, configurações) funciona normalmente.
+No Linux, a captura real geralmente exige permissão elevada:
 
-O bloqueio/desbloqueio real de IP no firewall (`netsh advfirewall`) só funciona no
-Windows e precisa ser executado como Administrador; em outros sistemas operacionais,
-o app informa isso na tela de Alertas em vez de falhar silenciosamente.
-
-## Alertas implementados
-
-| Detecção | Severidade padrão |
-|---|---|
-| SSH (porta 22) | Médio |
-| Telnet (porta 23) | Alto |
-| SMB (porta 445) | Alto |
-| RDP (porta 3389) | Alto |
-| Varredura de portas (≥ N portas distintas em X segundos, configurável) | Crítico |
-
-Exemplo:
-```text
-[15:58:03] [ALTO] Conexão RDP detectada: 192.168.0.10 -> 192.168.0.1:3389
-[16:02:11] [CRÍTICO] Possível varredura de portas (port scan): 192.168.0.20 acessou 18 portas diferentes em 10s (destino mais recente: 192.168.0.10:445)
+```bash
+sudo .venv/bin/python main.py
 ```
 
-## Próximos passos sugeridos
+No Windows, execute o terminal ou VS Code como **Administrador**.
 
-- Empacotar com PyInstaller para gerar um `.exe` standalone no Windows;
-- Adicionar autenticação/login para múltiplos analistas;
-- Gráficos de tráfego por IP/porta ao longo do tempo no Dashboard (ex.: com `matplotlib`);
-- Integração com listas de IPs maliciosos conhecidos (threat intelligence feeds).
+---
+
+## Requisitos para captura real
+
+### Windows
+
+Para capturar pacotes no Windows, é necessário instalar o **Npcap**.
+
+Durante a instalação, marque a opção:
+
+```text
+Install Npcap in WinPcap API-compatible Mode
+```
+
+Também é recomendado executar o projeto como Administrador.
+
+---
+
+### Linux
+
+No Linux, instale as dependências de captura:
+
+```bash
+sudo apt install libpcap-dev tcpdump python3-tk
+```
+
+Depois execute com permissão:
+
+```bash
+sudo .venv/bin/python main.py
+```
+
+---
+
+## Bloqueio de IP
+
+O bloqueio real de IP é feito no **Windows Firewall** usando `netsh advfirewall`.
+
+Exemplo de ação realizada pelo sistema:
+
+```bash
+netsh advfirewall firewall add rule name="DevSec Block IN 192.168.0.50" dir=in action=block remoteip=192.168.0.50
+```
+
+Esse recurso precisa de permissão de Administrador.
+
+Em sistemas diferentes do Windows, o programa informa que o bloqueio automático ainda não está implementado para aquele ambiente.
+
+---
+
+## Exemplo de fluxo capturado
+
+| IP Origem | IP Destino | Porta Origem | Porta Destino | Protocolo | Pacotes | Bytes | Último |
+|---|---|---:|---:|---|---:|---:|---|
+| 192.168.0.10 | 192.168.0.1 | 33592 | 8080 | TCP | 1 | 2142 | 15:58:03 |
+| 192.168.0.35 | 8.8.8.8 | 6094 | 53 | UDP | 3 | 3237 | 15:58:04 |
+| 10.0.0.8 | 1.1.1.1 | 60046 | 443 | TCP | 5 | 1364 | 15:58:05 |
+
+---
+
+## Exemplo de alerta
+
+```text
+[21:13:19] [ALTO] Tráfego SMB detectado: 192.168.0.168 -> 192.168.0.156:445
+[21:13:22] [MÉDIO] Conexão SSH detectada: 192.168.0.12 -> 192.168.0.168:22
+[21:13:30] [CRÍTICO] Possível port scan detectado: 192.168.0.20 acessou múltiplas portas em curto período
+```
+
+---
+
+## Fluxo de uso
+
+```text
+1. Abrir o DevSec
+2. Iniciar captura na tela Captura
+3. Observar fluxos em tempo real
+4. Aplicar filtros por IP, porta ou protocolo
+5. Verificar alertas gerados
+6. Classificar IPs suspeitos
+7. Adicionar IPs confiáveis à whitelist
+8. Bloquear IPs maliciosos quando necessário
+9. Exportar relatório para investigação
+```
+
+---
+
+## Casos de uso
+
+O DevSec pode ser usado para:
+
+- estudar análise de tráfego;
+- demonstrar conceitos de NetFlow;
+- investigar conexões suspeitas;
+- testar detecção de port scan;
+- criar relatórios de segurança;
+- compor portfólio em cibersegurança;
+- simular uma ferramenta de Blue Team;
+- apoiar projetos acadêmicos ou TCC.
+
+---
+
+## Próximas melhorias
+
+- Empacotar o projeto com PyInstaller;
+- Gerar instalador para Windows;
+- Adicionar autenticação de analistas;
+- Criar gráficos no Dashboard;
+- Implementar bloqueio em Linux usando `iptables` ou `nftables`;
+- Integrar listas de IPs maliciosos conhecidos;
+- Adicionar análise de DNS;
+- Adicionar geolocalização de IP público;
+- Criar timeline forense por IP;
+- Exportar evidências em formato mais completo.
+
+---
+
+## Status do projeto
+
+O projeto está funcional e em desenvolvimento contínuo.
+
+Versão atual:
+
+```text
+Interface desktop funcional
+Captura real com Scapy
+Persistência em SQLite
+Filtros de investigação
+Alertas de segurança
+Classificação de IPs
+Whitelist
+Bloqueio manual no Windows Firewall
+Relatórios CSV/PDF
+```
+
+---
+
+## Autor
+
+Desenvolvido por **Gabriel Bastos**.
+
+Projeto criado para fins de estudo, portfólio e prática em:
+
+- Segurança da Informação;
+- Blue Team;
+- Forense Digital;
+- Redes de Computadores;
+- Python;
+- Desenvolvimento de Software Desktop.
+
+---
+
+## Aviso
+
+Este projeto deve ser utilizado apenas em redes próprias, ambientes autorizados ou laboratórios de estudo.
+
+O uso da ferramenta para monitorar, capturar ou bloquear tráfego em redes de terceiros sem autorização pode violar leis e políticas de segurança.
