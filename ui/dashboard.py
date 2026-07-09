@@ -6,6 +6,7 @@ Recebe a instância da MainWindow (app) para ler o estado compartilhado
 """
 
 import customtkinter as ctk
+from ui.theme import COLORS, dark_button, danger_button, secondary_button
 
 
 class DashboardFrame(ctk.CTkFrame):

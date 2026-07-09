@@ -11,6 +11,7 @@ import os
 from tkinter import filedialog, ttk
 
 import customtkinter as ctk
+from ui.theme import COLORS, dark_button, danger_button, secondary_button
 
 
 class AlertsFrame(ctk.CTkFrame):
@@ -30,9 +31,9 @@ class AlertsFrame(ctk.CTkFrame):
         botoes = [
             ("Atualizar Lista", self.recarregar, None),
             ("Classificar como Normal", self._classificar_normal, None),
-            ("Marcar como Crítico", self._classificar_critico, "#7f1d1d"),
+            ("Marcar como Crítico", self._classificar_critico, COLORS["red"]),
             ("Adicionar à Whitelist", self._adicionar_whitelist, None),
-            ("Bloquear IP", self._bloquear, "#991b1b"),
+            ("Bloquear IP", self._bloquear, COLORS["red"]),
             ("Remover Bloqueio", self._desbloquear, None),
             ("Exportar Relatório do IP (PDF)", self._exportar_pdf_ip, None),
         ]

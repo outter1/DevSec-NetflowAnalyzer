@@ -9,6 +9,7 @@ e aplicado em tempo real ao Detector/PacketCapture já em execução.
 from tkinter import ttk
 
 import customtkinter as ctk
+from ui.theme import COLORS, dark_button, danger_button, secondary_button
 
 from capture.packet_capture import PacketCapture
 

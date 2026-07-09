@@ -38,6 +38,7 @@ from ui.alerts import AlertsFrame
 from ui.devices import DevicesFrame
 from ui.reports import ReportsFrame
 from ui.settings import SettingsFrame
+from ui.theme import COLORS, apply_theme, dark_button, danger_button, secondary_button
 
 
 class MainWindow(ctk.CTk):
@@ -48,8 +49,7 @@ class MainWindow(ctk.CTk):
         self.geometry("1280x740")
         self.minsize(1080, 620)
 
-        ctk.set_appearance_mode("dark")
-        ctk.set_default_color_theme("blue")
+        apply_theme(self)
 
         # ---------------------------------------------------------------- #
         # Estado / módulos de domínio
@@ -119,19 +119,32 @@ class MainWindow(ctk.CTk):
     # Layout / navegação
     # ====================================================================== #
     def _criar_layout(self):
-        self.sidebar = ctk.CTkFrame(self, width=220, corner_radius=0)
+        self.sidebar = ctk.CTkFrame(self, width=220, corner_radius=0, fg_color=COLORS["sidebar"])
         self.sidebar.pack(side="left", fill="y")
 
-        self.conteudo = ctk.CTkFrame(self)
+        self.conteudo = ctk.CTkFrame(self, fg_color=COLORS["bg"])
         self.conteudo.pack(side="right", fill="both", expand=True, padx=10, pady=10)
 
-        ctk.CTkLabel(self.sidebar, text="DevSec", font=("Arial", 26, "bold")).pack(pady=25)
+        ctk.CTkLabel(
+            self.sidebar,
+            text="◆ DEVSEC",
+            font=("Arial", 26, "bold"),
+            text_color=COLORS["cream_text"],
+        ).pack(pady=25)
 
         botoes = ["Dashboard", "Captura", "Alertas", "Dispositivos", "Relatórios", "Configurações"]
 
         for nome in botoes:
             ctk.CTkButton(
-                self.sidebar, text=nome, height=40, command=lambda n=nome: self.mostrar_pagina(n)
+                self.sidebar,
+                text=nome.upper(),
+                height=40,
+                command=lambda n=nome: self.mostrar_pagina(n),
+                fg_color=COLORS["sidebar"],
+                hover_color=COLORS["red"],
+                text_color=COLORS["cream_text"],
+                border_width=1,
+                border_color=COLORS["red"],
             ).pack(fill="x", padx=20, pady=8)
 
         self.mostrar_pagina("Dashboard")
@@ -145,7 +158,12 @@ class MainWindow(ctk.CTk):
         self.tela_atual_nome = nome
         self.frame_atual = None
 
-        ctk.CTkLabel(self.conteudo, text=nome, font=("Arial", 28, "bold")).pack(pady=15)
+        ctk.CTkLabel(
+            self.conteudo,
+            text=nome.upper(),
+            font=("Arial", 28, "bold"),
+            text_color=COLORS["terminal"],
+        ).pack(pady=15)
 
         if nome == "Dashboard":
             self.frame_atual = DashboardFrame(self.conteudo, self)
@@ -174,7 +192,7 @@ class MainWindow(ctk.CTk):
     # Tela de Captura (tabela de fluxos em tempo real)
     # ====================================================================== #
     def _tela_captura(self):
-        frame_botoes = ctk.CTkFrame(self.conteudo)
+        frame_botoes = ctk.CTkFrame(self.conteudo, fg_color=COLORS["panel_alt"])
         frame_botoes.pack(fill="x", padx=20, pady=10)
 
         ctk.CTkButton(frame_botoes, text="Iniciar Captura Real", height=38, command=self.iniciar_captura).pack(
@@ -184,15 +202,15 @@ class MainWindow(ctk.CTk):
             frame_botoes,
             text="Parar Captura",
             height=38,
-            fg_color="#7f1d1d",
-            hover_color="#991b1b",
+            fg_color=COLORS["red"],
+            hover_color=COLORS["red_hover"],
             command=self.parar_captura,
         ).pack(side="left", padx=10, pady=10)
-        ctk.CTkButton(frame_botoes, text="Limpar Tabela", height=38, command=self.limpar_tabela).pack(
+        ctk.CTkButton(frame_botoes, text="Limpar Tabela", height=38, command=self.limpar_tabela, **dark_button()).pack(
             side="left", padx=10, pady=10
         )
 
-        frame_filtros = ctk.CTkFrame(self.conteudo)
+        frame_filtros = ctk.CTkFrame(self.conteudo, fg_color=COLORS["panel_alt"])
         frame_filtros.pack(fill="x", padx=20, pady=5)
 
         self.filtro_ip = ctk.CTkEntry(frame_filtros, placeholder_text="Filtrar por IP", width=180)
@@ -212,7 +230,7 @@ class MainWindow(ctk.CTk):
             side="left", padx=10, pady=10
         )
 
-        frame_tabela = ctk.CTkFrame(self.conteudo)
+        frame_tabela = ctk.CTkFrame(self.conteudo, fg_color=COLORS["panel"])
         frame_tabela.pack(fill="both", expand=True, padx=20, pady=10)
 
         colunas = (

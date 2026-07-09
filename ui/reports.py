@@ -8,6 +8,7 @@ import os
 from tkinter import filedialog
 
 import customtkinter as ctk
+from ui.theme import COLORS, dark_button, danger_button, secondary_button
 
 
 class ReportsFrame(ctk.CTkFrame):

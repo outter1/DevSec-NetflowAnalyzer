@@ -9,6 +9,7 @@ import threading
 from tkinter import ttk
 
 import customtkinter as ctk
+from ui.theme import COLORS, dark_button, danger_button, secondary_button
 
 
 class DevicesFrame(ctk.CTkFrame):
