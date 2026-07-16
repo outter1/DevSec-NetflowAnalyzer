@@ -11,7 +11,7 @@
 
 ## Visão geral
 
-O **DevSec - NetFlow Analyzer** é uma plataforma desktop de análise de tráfego de rede desenvolvida em **Python**, com foco em **Blue Team**, **Forense Digital**, **Redes** e **Resposta a Incidentes**.
+O **DevSec - NetFlow Analyzer** é uma plataforma desktop e web de análise de tráfego de rede desenvolvida em **Python**, com foco em **Blue Team**, **Forense Digital**, **Redes** e **Resposta a Incidentes**.
 
 A proposta do projeto é funcionar como um **mini SIEM local**, capaz de capturar pacotes da rede, transformar esses pacotes em fluxos, identificar comportamentos suspeitos, gerar alertas, classificar IPs e permitir ações manuais de resposta, como whitelist e bloqueio no firewall.
 
@@ -58,6 +58,20 @@ O projeto une conceitos de:
 
 ## Funcionalidades principais
 
+### Interface desktop moderna
+
+O `main.py` utiliza uma interface escura inspirada na versão web, com menu lateral, barra de captura fixa, cards de métricas, tabelas interativas e atualização automática. A navegação contém:
+
+- visão geral;
+- fluxos em tempo real;
+- alertas;
+- blacklist de IPs;
+- domínios acessados e políticas de domínio;
+- dispositivos;
+- relatórios;
+- configurações;
+- auditoria.
+
 ### Dashboard
 
 Visão geral do ambiente monitorado:
@@ -103,6 +117,23 @@ Na tela de alertas, o analista pode:
 - bloquear IP no firewall;
 - remover bloqueio;
 - exportar relatório de investigação.
+
+---
+
+
+### Interface web integrada
+
+O arquivo `app_web.py` executa a mesma captura, detecção e persistência reais do programa, usando o mesmo banco SQLite. A interface web oferece:
+
+- atualização automática de fluxos e alertas;
+- inclusão de IP em blacklist com atualização imediata da tela de alertas;
+- bloqueio e desbloqueio de IP no firewall local;
+- blacklist de domínios por todos os clientes ou por IP de origem;
+- visualização de domínios observados nos últimos segundos;
+- evidências de domínio extraídas de DNS tradicional, HTTP Host e TLS SNI;
+- lista de dispositivos e auditoria das ações do analista.
+
+> Em redes com switch, um computador comum não enxerga automaticamente o tráfego unicast dos outros hosts. Para monitorar a LAN, execute o DevSec no gateway ou use uma porta SPAN/espelhada. DNS sobre HTTPS/TLS, VPN e TLS com ECH podem ocultar domínios. Para bloquear domínios em outros dispositivos, o DevSec precisa ser o gateway, firewall ou DNS desses equipamentos.
 
 ---
 
@@ -192,13 +223,16 @@ A tela de configurações permite ajustar regras importantes do sistema, como:
 ```text
 DevSec-NetflowAnalyzer/
 │
-├── main.py                         # Ponto de entrada da aplicação
+├── main.py                         # Ponto de entrada da aplicação desktop
+├── app_web.py                      # Interface web, APIs e captura integrada
+├── network_control.py              # Regras locais de firewall
 ├── requirements.txt                # Dependências do projeto
 ├── devsec_netflow.db               # Banco SQLite criado automaticamente
 │
 ├── capture/
 │   ├── packet_capture.py           # Captura real com Scapy
 │   ├── flow_analyzer.py            # Conversão de pacotes em fluxos
+│   ├── domain_analyzer.py          # DNS, HTTP Host e TLS SNI
 │   └── detector.py                 # Regras de detecção
 │
 ├── database/
@@ -209,13 +243,18 @@ DevSec-NetflowAnalyzer/
 │   └── export.py                   # Exportação de relatórios CSV/PDF
 │
 └── ui/
-    ├── main_window.py              # Janela principal e menu lateral
-    ├── dashboard.py                # Tela Dashboard
-    ├── alerts.py                   # Tela de Alertas
-    ├── devices.py                  # Tela de Dispositivos
-    ├── reports.py                  # Tela de Relatórios
-    ├── settings.py                 # Tela de Configurações
-    └── theme.py                    # Paleta visual da interface
+    ├── main_window.py              # Orquestração, captura, firewall e navegação
+    ├── components.py               # Cards, painéis, cabeçalhos e tabelas
+    ├── dashboard.py                # Visão geral e fluxos recentes
+    ├── flows.py                    # Fluxos em tempo real e console
+    ├── alerts.py                   # Investigação e resposta aos alertas
+    ├── ip_policy.py                # Blacklist e bloqueios de IP
+    ├── domains.py                  # Domínios recentes e políticas
+    ├── devices.py                  # Dispositivos e descoberta ARP
+    ├── audit.py                    # Auditoria das ações do analista
+    ├── reports.py                  # Exportação CSV/PDF
+    ├── settings.py                 # Configurações de captura/detecção
+    └── theme.py                    # Tema escuro inspirado na interface web
 ```
 
 ---
@@ -306,6 +345,8 @@ pip install -r requirements.txt
 
 ## Execução
 
+### Interface desktop
+
 ```bash
 python main.py
 ```
@@ -319,6 +360,46 @@ sudo .venv/bin/python main.py
 No Windows, execute o terminal ou VS Code como **Administrador**.
 
 ---
+
+### Interface web
+
+No terminal, dentro da pasta do projeto:
+
+```bash
+python app_web.py
+```
+
+Abra no navegador:
+
+```text
+http://127.0.0.1:5000
+```
+
+A captura inicia automaticamente. Para desativar o início automático:
+
+#### Windows PowerShell
+
+```powershell
+$env:DEVSEC_AUTO_CAPTURE="0"
+python app_web.py
+```
+
+#### Linux
+
+```bash
+DEVSEC_AUTO_CAPTURE=0 python app_web.py
+```
+
+Variáveis opcionais:
+
+| Variável | Finalidade | Padrão |
+|---|---|---|
+| `DEVSEC_WEB_HOST` | Endereço do servidor web | `127.0.0.1` |
+| `DEVSEC_WEB_PORT` | Porta HTTP | `5000` |
+| `DEVSEC_WEB_SECRET` | Chave persistente da sessão Flask | gerada ao iniciar |
+| `DEVSEC_DB_PATH` | Caminho de outro banco SQLite | `devsec_netflow.db` |
+| `DEVSEC_AUTO_CAPTURE` | Iniciar captura ao abrir | `1` |
+
 
 ## Requisitos para captura real
 
@@ -354,7 +435,7 @@ sudo .venv/bin/python main.py
 
 ## Bloqueio de IP
 
-O bloqueio real de IP é feito no **Windows Firewall** usando `netsh advfirewall`.
+O bloqueio real de IP usa o **Windows Firewall** (`netsh advfirewall`) no Windows e `iptables`/`ip6tables` quando disponível no Linux.
 
 Exemplo de ação realizada pelo sistema:
 
@@ -364,7 +445,7 @@ netsh advfirewall firewall add rule name="DevSec Block IN 192.168.0.50" dir=in a
 
 Esse recurso precisa de permissão de Administrador.
 
-Em sistemas diferentes do Windows, o programa informa que o bloqueio automático ainda não está implementado para aquele ambiente.
+No Linux, as regras exigem `iptables` ou `ip6tables` e privilégios administrativos.
 
 ---
 
@@ -392,7 +473,7 @@ Em sistemas diferentes do Windows, o programa informa que o bloqueio automático
 
 ```text
 1. Abrir o DevSec
-2. Iniciar captura na tela Captura
+2. Iniciar captura pela barra superior ou pela tela Fluxos
 3. Observar fluxos em tempo real
 4. Aplicar filtros por IP, porta ou protocolo
 5. Verificar alertas gerados
@@ -425,9 +506,9 @@ O DevSec pode ser usado para:
 - Gerar instalador para Windows;
 - Adicionar autenticação de analistas;
 - Criar gráficos no Dashboard;
-- Implementar bloqueio em Linux usando `iptables` ou `nftables`;
+- Adicionar suporte alternativo a `nftables`;
 - Integrar listas de IPs maliciosos conhecidos;
-- Adicionar análise de DNS;
+- Adicionar suporte a DNS sobre HTTPS por integração com gateway/proxy autorizado;
 - Adicionar geolocalização de IP público;
 - Criar timeline forense por IP;
 - Exportar evidências em formato mais completo.
@@ -442,21 +523,32 @@ Versão atual:
 
 ```text
 Interface desktop funcional
+Interface web integrada
 Captura real com Scapy
 Persistência em SQLite
 Filtros de investigação
 Alertas de segurança
 Classificação de IPs
 Whitelist
-Bloqueio manual no Windows Firewall
+Bloqueio manual no firewall local
+Blacklist de IPs e domínios
+Histórico recente de domínios observados
 Relatórios CSV/PDF
 ```
 
 ---
 
+Limitação importante
+
+Para enxergar os sites acessados por outros computadores da rede, o DevSec precisa estar no gateway/roteador, em uma máquina recebendo tráfego por porta SPAN/espelhamento ou no DNS da rede. Em um computador comum conectado a um switch, normalmente será possível enxergar apenas o próprio tráfego, broadcasts e pacotes encaminhados até ele.
+
+DoH, DoT, VPN e TLS com ECH também podem esconder os domínios. O bloqueio real no Windows Firewall precisa ser testado no seu Windows como administrador; no ambiente desenvolvido em Linux foi possivel validar as APIs, o banco e a captura de DNS/HTTP/TLS, mas não foi possivel executar o netsh do Windows.
+
+---
+
 ## Autor
 
-Desenvolvido por **Gabriel Bastos**.
+Desenvolvido por **DevSec**.
 
 Projeto criado para fins de estudo, portfólio e prática em:
 

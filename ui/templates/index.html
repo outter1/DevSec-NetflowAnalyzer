@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <title>DevSec — NetFlow Analyzer</title>
+    <style>
+        :root {
+            --bg: #09090b;
+            --panel: #141416;
+            --panel-2: #1b1b1f;
+            --border: rgba(255,255,255,.09);
+            --text: #f5f5f7;
+            --muted: #9ca3af;
+            --red: #da251c;
+            --red-2: #ff453a;
+            --green: #22c55e;
+            --yellow: #f59e0b;
+            --blue: #38bdf8;
+            --shadow: 0 18px 45px rgba(0,0,0,.35);
+        }
+
+        * { box-sizing: border-box; }
+        html { color-scheme: dark; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background:
+                radial-gradient(circle at 20% -10%, rgba(218,37,28,.13), transparent 35%),
+                linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px),
+                var(--bg);
+            background-size: auto, 38px 38px, 38px 38px, auto;
+            color: var(--text);
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+        }
+
+        button, input, select { font: inherit; }
+        button { cursor: pointer; }
+        a { color: inherit; }
+
+        .topbar {
+            height: 68px;
+            padding: 0 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border);
+            background: rgba(12,12,14,.88);
+            backdrop-filter: blur(18px);
+            position: sticky;
+            top: 0;
+            z-index: 20;
+        }
+        .brand { display: flex; align-items: center; gap: 12px; font-weight: 850; font-size: 1.2rem; }
+        .brand-mark { width: 34px; height: 34px; border: 2px solid var(--red); border-radius: 9px; display:grid; place-items:center; box-shadow:0 0 18px rgba(218,37,28,.25); }
+        .brand span { color: var(--red-2); }
+        .top-actions { display:flex; align-items:center; gap:14px; color:var(--muted); font-size:.87rem; }
+
+        .shell { display:grid; grid-template-columns: 230px minmax(0,1fr); min-height: calc(100vh - 68px); }
+        .sidebar { border-right:1px solid var(--border); padding:22px 14px; background:rgba(12,12,14,.72); }
+        .nav-button {
+            width:100%; border:1px solid transparent; background:transparent; color:var(--muted);
+            padding:12px 14px; margin:4px 0; border-radius:10px; text-align:left; font-weight:650;
+            transition:.18s ease;
+        }
+        .nav-button:hover { background:rgba(255,255,255,.04); color:var(--text); }
+        .nav-button.active { color:white; border-color:rgba(218,37,28,.35); background:rgba(218,37,28,.12); }
+        .sidebar-note { margin:24px 8px 0; padding:13px; color:var(--muted); font-size:.76rem; line-height:1.5; border:1px solid var(--border); border-radius:10px; }
+
+        main { padding:26px; min-width:0; }
+        .page-head { display:flex; align-items:flex-start; justify-content:space-between; gap:20px; margin-bottom:20px; }
+        .page-head h1 { margin:0; font-size:1.55rem; }
+        .page-head p { margin:6px 0 0; color:var(--muted); font-size:.9rem; }
+
+        .capture-bar { display:flex; flex-wrap:wrap; align-items:center; gap:9px; }
+        .control, .btn {
+            min-height:38px; border-radius:9px; border:1px solid var(--border); padding:8px 12px;
+            color:var(--text); background:rgba(255,255,255,.035);
+        }
+        .control { min-width:160px; }
+        .btn:hover { border-color:rgba(255,255,255,.22); background:rgba(255,255,255,.075); }
+        .btn-primary { background:var(--red); border-color:var(--red); color:white; font-weight:750; }
+        .btn-primary:hover { background:var(--red-2); }
+        .btn-danger { border-color:rgba(218,37,28,.5); color:#ff8f88; }
+        .btn-small { min-height:30px; padding:5px 8px; font-size:.76rem; }
+        .btn-link { text-decoration:none; }
+
+        .grid-cards { display:grid; grid-template-columns:repeat(6,minmax(135px,1fr)); gap:12px; margin-bottom:18px; }
+        .metric { background:rgba(20,20,22,.86); border:1px solid var(--border); border-radius:13px; padding:16px; box-shadow:var(--shadow); }
+        .metric-label { color:var(--muted); font-size:.75rem; text-transform:uppercase; letter-spacing:.08em; }
+        .metric-value { font-size:1.55rem; font-weight:850; margin-top:8px; }
+
+        .panel { background:rgba(20,20,22,.86); border:1px solid var(--border); border-radius:14px; box-shadow:var(--shadow); margin-bottom:18px; overflow:hidden; }
+        .panel-head { display:flex; justify-content:space-between; align-items:center; gap:15px; padding:16px 18px; border-bottom:1px solid var(--border); }
+        .panel-head h2 { margin:0; font-size:.95rem; text-transform:uppercase; letter-spacing:.08em; }
+        .panel-body { padding:18px; }
+        .status-line { display:flex; align-items:center; gap:8px; color:var(--muted); font-size:.84rem; }
+        .dot { width:9px; height:9px; border-radius:50%; background:var(--muted); }
+        .dot.on { background:var(--green); box-shadow:0 0 10px rgba(34,197,94,.7); }
+        .dot.off { background:var(--red); }
+
+        .table-wrap { overflow:auto; max-width:100%; }
+        table { width:100%; border-collapse:collapse; min-width:760px; }
+        th, td { padding:11px 12px; border-bottom:1px solid var(--border); text-align:left; font-size:.82rem; vertical-align:middle; }
+        th { color:#d1d5db; font-size:.69rem; text-transform:uppercase; letter-spacing:.075em; background:rgba(255,255,255,.018); position:sticky; top:0; }
+        td { color:#e5e7eb; }
+        tr:last-child td { border-bottom:0; }
+        tr:hover td { background:rgba(255,255,255,.018); }
+        .mono { font-family:"Cascadia Code",Consolas,monospace; }
+        .muted { color:var(--muted); }
+        .empty { padding:30px !important; text-align:center; color:var(--muted); }
+
+        .badge { display:inline-flex; align-items:center; border:1px solid var(--border); border-radius:999px; padding:3px 8px; font-size:.69rem; font-weight:750; white-space:nowrap; }
+        .badge.red { color:#ff9e98; background:rgba(218,37,28,.12); border-color:rgba(218,37,28,.3); }
+        .badge.green { color:#86efac; background:rgba(34,197,94,.1); border-color:rgba(34,197,94,.25); }
+        .badge.yellow { color:#fcd34d; background:rgba(245,158,11,.1); border-color:rgba(245,158,11,.28); }
+        .badge.blue { color:#7dd3fc; background:rgba(56,189,248,.1); border-color:rgba(56,189,248,.25); }
+
+        .tab-pane { display:none; }
+        .tab-pane.active { display:block; animation:fade .18s ease; }
+        @keyframes fade { from {opacity:.4; transform:translateY(3px)} to {opacity:1; transform:none} }
+
+        .form-grid { display:grid; grid-template-columns:repeat(4,minmax(150px,1fr)); gap:10px; align-items:end; }
+        .form-field label { display:block; color:var(--muted); font-size:.75rem; margin:0 0 6px; }
+        .form-field input, .form-field select { width:100%; }
+        .help { margin:10px 0 0; color:var(--muted); font-size:.77rem; line-height:1.5; }
+        .split { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+
+        .toast-box { position:fixed; right:20px; bottom:20px; z-index:50; display:grid; gap:8px; width:min(390px,calc(100vw - 40px)); }
+        .toast { padding:12px 14px; border-radius:10px; border:1px solid var(--border); background:#202024; box-shadow:var(--shadow); font-size:.84rem; animation:toastIn .2s ease; }
+        .toast.ok { border-color:rgba(34,197,94,.35); }
+        .toast.error { border-color:rgba(218,37,28,.5); }
+        @keyframes toastIn { from {opacity:0; transform:translateY(10px)} }
+
+        @media (max-width: 1180px) {
+            .grid-cards { grid-template-columns:repeat(3,1fr); }
+            .form-grid { grid-template-columns:repeat(2,1fr); }
+            .split { grid-template-columns:1fr; }
+        }
+        @media (max-width: 760px) {
+            .shell { grid-template-columns:1fr; }
+            .sidebar { display:flex; overflow:auto; border-right:0; border-bottom:1px solid var(--border); padding:8px; }
+            .nav-button { width:auto; white-space:nowrap; }
+            .sidebar-note { display:none; }
+            main { padding:16px; }
+            .top-actions .user-label { display:none; }
+            .page-head { display:block; }
+            .capture-bar { margin-top:14px; }
+            .grid-cards { grid-template-columns:repeat(2,1fr); }
+            .form-grid { grid-template-columns:1fr; }
+        }
+    </style>
+</head>
+<body>
+<header class="topbar">
+    <div class="brand"><div class="brand-mark">◆</div>Dev<span>Sec</span> <small class="muted">NetFlow Analyzer</small></div>
+    <div class="top-actions">
+        <span class="user-label">Analista: <strong style="color:white">{{ usuario }}</strong></span>
+        <a class="btn btn-small btn-link" href="/logout">Sair</a>
+    </div>
+</header>
+
+<div class="shell">
+    <aside class="sidebar">
+        <button class="nav-button active" data-tab="dashboard">Visão geral</button>
+        <button class="nav-button" data-tab="alerts">Alertas</button>
+        <button class="nav-button" data-tab="ip-policy">Blacklist de IPs</button>
+        <button class="nav-button" data-tab="domains">Domínios acessados</button>
+        <button class="nav-button" data-tab="devices">Dispositivos</button>
+        <button class="nav-button" data-tab="audit">Auditoria</button>
+        <div class="sidebar-note">
+            Use somente em redes e dispositivos sob sua autorização. Para ver o tráfego de outros hosts em uma rede com switch, execute no gateway ou use uma porta SPAN/espelhada. DNS criptografado, VPN e TLS com ECH podem ocultar domínios.
+        </div>
+    </aside>
+
+    <main>
+        <div class="page-head">
+            <div>
+                <h1>Central operacional</h1>
+                <p>Dados reais do SQLite e da captura de rede — sem registros simulados.</p>
+            </div>
+            <div class="capture-bar">
+                <select id="interfaceSelect" class="control" title="Interface de captura"><option value="">Automática</option></select>
+                <button id="saveInterface" class="btn">Usar interface</button>
+                <button id="startCapture" class="btn btn-primary">Iniciar captura</button>
+                <button id="stopCapture" class="btn btn-danger">Parar captura</button>
+            </div>
+        </div>
+
+        <section class="grid-cards">
+            <div class="metric"><div class="metric-label">Fluxos</div><div class="metric-value" id="mFlows">—</div></div>
+            <div class="metric"><div class="metric-label">Alertas</div><div class="metric-value" id="mAlerts">—</div></div>
+            <div class="metric"><div class="metric-label">IPs bloqueados</div><div class="metric-value" id="mBlocked">—</div></div>
+            <div class="metric"><div class="metric-label">Blacklist IP</div><div class="metric-value" id="mBlacklist">—</div></div>
+            <div class="metric"><div class="metric-label">Domínios / 30s</div><div class="metric-value" id="mDomains">—</div></div>
+            <div class="metric"><div class="metric-label">Dispositivos</div><div class="metric-value" id="mDevices">—</div></div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-head">
+                <h2>Estado da captura</h2>
+                <div class="status-line"><span class="dot off" id="captureDot"></span><span id="captureState">Consultando…</span></div>
+            </div>
+            <div class="panel-body" id="captureMessage">Carregando estado real do capturador.</div>
+        </section>
+
+        <section id="dashboard" class="tab-pane active">
+            <div class="panel">
+                <div class="panel-head"><h2>Fluxos recentes</h2><span class="badge red">atualização automática</span></div>
+                <div class="table-wrap"><table>
+                    <thead><tr><th>Último evento</th><th>Origem</th><th>Porta</th><th>Destino</th><th>Porta</th><th>Protocolo</th><th>Pacotes</th><th>Bytes</th></tr></thead>
+                    <tbody id="flowsBody"><tr><td colspan="8" class="empty">Carregando fluxos…</td></tr></tbody>
+                </table></div>
+            </div>
+        </section>
+
+        <section id="alerts" class="tab-pane">
+            <div class="panel">
+                <div class="panel-head"><h2>Alertas e classificação dos IPs</h2><span class="badge red">tempo real</span></div>
+                <div class="table-wrap"><table>
+                    <thead><tr><th>IP</th><th>Severidade</th><th>Motivo</th><th>Status</th><th>Eventos</th><th>Último</th><th>Ações</th></tr></thead>
+                    <tbody id="alertsBody"><tr><td colspan="7" class="empty">Carregando alertas…</td></tr></tbody>
+                </table></div>
+            </div>
+        </section>
+
+        <section id="ip-policy" class="tab-pane">
+            <div class="panel">
+                <div class="panel-head"><h2>Adicionar IP à blacklist</h2></div>
+                <div class="panel-body">
+                    <form id="ipBlacklistForm" class="form-grid">
+                        <div class="form-field"><label>Endereço IP</label><input class="control" id="blacklistIp" required placeholder="192.168.1.50"></div>
+                        <div class="form-field" style="grid-column:span 2"><label>Motivo</label><input class="control" id="blacklistReason" placeholder="Motivo da classificação"></div>
+                        <button class="btn btn-primary" type="submit">Adicionar e alertar</button>
+                    </form>
+                </div>
+            </div>
+            <div class="split">
+                <div class="panel">
+                    <div class="panel-head"><h2>Blacklist de IPs</h2></div>
+                    <div class="table-wrap"><table><thead><tr><th>IP</th><th>Motivo</th><th>Adicionado</th><th>Ações</th></tr></thead><tbody id="ipBlacklistBody"></tbody></table></div>
+                </div>
+                <div class="panel">
+                    <div class="panel-head"><h2>Bloqueados no firewall</h2></div>
+                    <div class="table-wrap"><table><thead><tr><th>IP</th><th>Bloqueado em</th><th>Ação</th></tr></thead><tbody id="blockedIpsBody"></tbody></table></div>
+                </div>
+            </div>
+        </section>
+
+        <section id="domains" class="tab-pane">
+            <div class="panel">
+                <div class="panel-head"><h2>Adicionar domínio à blacklist</h2></div>
+                <div class="panel-body">
+                    <form id="domainForm" class="form-grid">
+                        <div class="form-field"><label>Domínio</label><input class="control" id="domainName" required placeholder="exemplo.com"></div>
+                        <div class="form-field"><label>IP do cliente</label><input class="control" id="domainClient" placeholder="* para todos" value="*"></div>
+                        <div class="form-field"><label>Modo</label><select class="control" id="domainMode"><option value="monitorar">Monitorar e alertar</option><option value="bloquear_local">Bloquear neste computador</option></select></div>
+                        <button class="btn btn-primary" type="submit">Adicionar política</button>
+                    </form>
+                    <p class="help">O modo “bloquear neste computador” resolve o domínio e cria regras de saída no firewall local. Para bloquear um dispositivo diferente da LAN, o DevSec precisa estar operando como gateway, firewall ou DNS desse dispositivo.</p>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-head">
+                    <h2>Domínios observados recentemente</h2>
+                    <div class="capture-bar">
+                        <input class="control" id="domainFilterIp" placeholder="Filtrar IP cliente">
+                        <input class="control" id="domainFilterName" placeholder="Filtrar domínio">
+                        <select class="control" id="domainSeconds"><option value="10">Últimos 10s</option><option value="30" selected>Últimos 30s</option><option value="60">Último minuto</option><option value="300">Últimos 5 min</option></select>
+                        <button class="btn" id="refreshDomains">Atualizar</button>
+                    </div>
+                </div>
+                <div class="table-wrap"><table>
+                    <thead><tr><th>Observado em</th><th>IP cliente</th><th>Domínio</th><th>Destino</th><th>Fonte</th><th>Política</th></tr></thead>
+                    <tbody id="recentDomainsBody"><tr><td colspan="6" class="empty">Aguardando tráfego DNS/HTTP/TLS visível…</td></tr></tbody>
+                </table></div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-head"><h2>Políticas de domínio</h2></div>
+                <div class="table-wrap"><table>
+                    <thead><tr><th>Domínio</th><th>Cliente</th><th>Modo</th><th>IPs resolvidos</th><th>Estado</th><th>Ação</th></tr></thead>
+                    <tbody id="domainBlacklistBody"></tbody>
+                </table></div>
+            </div>
+        </section>
+
+        <section id="devices" class="tab-pane">
+            <div class="panel">
+                <div class="panel-head"><h2>Dispositivos observados</h2><span class="badge blue">captura passiva</span></div>
+                <div class="table-wrap"><table>
+                    <thead><tr><th>IP</th><th>Hostname</th><th>MAC</th><th>Status</th><th>Conexões</th><th>Primeiro visto</th><th>Último visto</th></tr></thead>
+                    <tbody id="devicesBody"></tbody>
+                </table></div>
+            </div>
+        </section>
+
+        <section id="audit" class="tab-pane">
+            <div class="panel">
+                <div class="panel-head"><h2>Auditoria da interface web</h2><span class="badge yellow">ações do analista</span></div>
+                <div class="table-wrap"><table>
+                    <thead><tr><th>Data/hora</th><th>Analista</th><th>Ação</th><th>Detalhes</th><th>IP do terminal</th></tr></thead>
+                    <tbody id="auditBody"></tbody>
+                </table></div>
+            </div>
+        </section>
+    </main>
+</div>
+
+<div class="toast-box" id="toasts"></div>
+
+<script>
+const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+let activeTab = 'dashboard';
+let refreshBusy = false;
+
+const esc = value => String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+const badge = (text, tone='blue') => `<span class="badge ${tone}">${esc(text)}</span>`;
+const emptyRow = (cols, text) => `<tr><td colspan="${cols}" class="empty">${esc(text)}</td></tr>`;
+
+function severityTone(value) {
+    const v = String(value || '').toUpperCase();
+    if (v.includes('CRÍT')) return 'red';
+    if (v.includes('ALTO')) return 'yellow';
+    if (v.includes('BAIXO')) return 'green';
+    return 'blue';
+}
+
+function toast(message, ok=true) {
+    const el = document.createElement('div');
+    el.className = `toast ${ok ? 'ok' : 'error'}`;
+    el.textContent = message;
+    document.getElementById('toasts').appendChild(el);
+    setTimeout(() => el.remove(), 4800);
+}
+
+async function api(url, options={}) {
+    const opts = {...options, headers: {...(options.headers || {})}};
+    if (opts.method && opts.method !== 'GET') opts.headers['X-CSRF-Token'] = csrfToken;
+    if (opts.body && typeof opts.body !== 'string') {
+        opts.headers['Content-Type'] = 'application/json';
+        opts.body = JSON.stringify(opts.body);
+    }
+    const response = await fetch(url, opts);
+    if (response.status === 401) { window.location.href = '/'; throw new Error('Sessão expirada'); }
+    const data = await response.json().catch(() => ({ok:false, erro:'Resposta inválida do servidor'}));
+    if (!response.ok || data.ok === false) throw new Error(data.erro || data.mensagem || `Erro HTTP ${response.status}`);
+    return data;
+}
+
+async function refreshStatus() {
+    const {dados:s} = await api('/api/status');
+    document.getElementById('mFlows').textContent = s.total_fluxos;
+    document.getElementById('mAlerts').textContent = s.total_alertas;
+    document.getElementById('mBlocked').textContent = s.total_bloqueados;
+    document.getElementById('mBlacklist').textContent = s.total_blacklist;
+    document.getElementById('mDomains').textContent = s.dominios_recentes;
+    document.getElementById('mDevices').textContent = s.total_dispositivos;
+    const dot = document.getElementById('captureDot');
+    dot.className = `dot ${s.captura_ativa ? 'on' : 'off'}`;
+    document.getElementById('captureState').textContent = s.captura_ativa ? 'Captura ativa' : 'Captura parada';
+    document.getElementById('captureMessage').innerHTML = `${esc(s.mensagem_captura)} <span class="muted">Interface: ${esc(s.interface)} · Pacotes nesta sessão: ${esc(s.pacotes_processados_sessao)} · Fila: ${esc(s.fila_pendente)} · Descartados: ${esc(s.eventos_descartados)}</span>`;
+}
+
+async function refreshFlows() {
+    const {dados} = await api('/api/flows?limit=100');
+    document.getElementById('flowsBody').innerHTML = dados.length ? dados.map(f => `<tr>
+        <td class="mono muted">${esc(f.ultimo_evento)}</td><td class="mono">${esc(f.ip_origem)}</td><td>${esc(f.porta_origem)}</td>
+        <td class="mono">${esc(f.ip_destino)}</td><td>${esc(f.porta_destino)}</td><td>${badge(f.protocolo,'blue')}</td><td>${esc(f.pacotes)}</td><td>${esc(f.bytes)}</td>
+    </tr>`).join('') : emptyRow(8,'Nenhum fluxo real gravado no banco. Inicie a captura e gere tráfego na interface selecionada.');
+}
+
+async function refreshAlerts() {
+    const {dados} = await api('/api/alerts');
+    document.getElementById('alertsBody').innerHTML = dados.length ? dados.map(a => `<tr>
+        <td class="mono">${esc(a.ip)}</td><td>${badge(a.severidade,severityTone(a.severidade))}</td><td>${esc(a.motivo)}</td><td>${badge(a.status, a.status === 'Bloqueado' ? 'red' : 'blue')}</td>
+        <td>${esc(a.eventos)}</td><td class="mono muted">${esc(a.ultimo_evento)}</td><td>
+            <button class="btn btn-small" data-action="blacklist" data-ip="${esc(a.ip)}">Blacklist</button>
+            <button class="btn btn-small btn-danger" data-action="block" data-ip="${esc(a.ip)}">Bloquear</button>
+        </td></tr>`).join('') : emptyRow(7,'Nenhum alerta foi gerado ou classificado.');
+}
+
+async function refreshIpPolicies() {
+    const [black, blocked] = await Promise.all([api('/api/ip-blacklist'), api('/api/blocked-ips')]);
+    document.getElementById('ipBlacklistBody').innerHTML = black.dados.length ? black.dados.map(i => `<tr>
+        <td class="mono">${esc(i.ip)}</td><td>${esc(i.motivo || '—')}</td><td class="mono muted">${esc(i.adicionado_em)}</td><td>
+            <button class="btn btn-small btn-danger" data-action="block" data-ip="${esc(i.ip)}">Bloquear</button>
+            <button class="btn btn-small" data-action="remove-blacklist" data-ip="${esc(i.ip)}">Remover</button>
+        </td></tr>`).join('') : emptyRow(4,'Nenhum IP na blacklist.');
+    document.getElementById('blockedIpsBody').innerHTML = blocked.dados.length ? blocked.dados.map(i => `<tr>
+        <td class="mono">${esc(i.ip)}</td><td class="mono muted">${esc(i.bloqueado_em)}</td><td><button class="btn btn-small" data-action="unblock" data-ip="${esc(i.ip)}">Desbloquear</button></td>
+    </tr>`).join('') : emptyRow(3,'Nenhum bloqueio persistido.');
+}
+
+async function refreshDomains() {
+    const seconds = document.getElementById('domainSeconds').value;
+    const ip = document.getElementById('domainFilterIp').value.trim();
+    const domain = document.getElementById('domainFilterName').value.trim();
+    const params = new URLSearchParams({seconds, limit:'500'});
+    if (ip) params.set('client_ip', ip);
+    if (domain) params.set('domain', domain);
+    const [recent, rules] = await Promise.all([api(`/api/domains/recent?${params}`), api('/api/domain-blacklist')]);
+    document.getElementById('recentDomainsBody').innerHTML = recent.dados.length ? recent.dados.map(d => `<tr>
+        <td class="mono muted">${esc(d.observado_em)}</td><td class="mono">${esc(d.ip_cliente)}</td><td>${esc(d.dominio)}</td>
+        <td class="mono">${esc(d.ip_destino || '—')}:${esc(d.porta_destino || 0)}</td><td>${badge(d.fonte,'blue')}</td><td>${d.bloqueado_pela_politica ? badge('Em blacklist','red') : badge('Permitido','green')}</td>
+    </tr>`).join('') : emptyRow(6,'Nenhum domínio visível foi observado nesse intervalo.');
+
+    document.getElementById('domainBlacklistBody').innerHTML = rules.dados.length ? rules.dados.map(r => `<tr>
+        <td>${esc(r.dominio)}</td><td class="mono">${esc(r.ip_cliente)}</td><td>${badge(r.modo === 'bloquear_local' ? 'Bloqueio local' : 'Monitorar', r.modo === 'bloquear_local' ? 'red' : 'yellow')}</td>
+        <td class="mono">${esc((r.ips_resolvidos || []).join(', ') || '—')}</td><td>${r.ultimo_erro ? badge(r.ultimo_erro,'red') : badge('Ativa','green')}</td>
+        <td><button class="btn btn-small" data-action="remove-domain" data-domain="${esc(r.dominio)}" data-client="${esc(r.ip_cliente)}">Remover</button></td>
+    </tr>`).join('') : emptyRow(6,'Nenhuma política de domínio cadastrada.');
+}
+
+async function refreshDevices() {
+    const {dados} = await api('/api/devices');
+    document.getElementById('devicesBody').innerHTML = dados.length ? dados.map(d => `<tr>
+        <td class="mono">${esc(d.ip)}</td><td>${esc(d.hostname || '—')}</td><td class="mono">${esc(d.mac || '—')}</td><td>${badge(d.status,'green')}</td><td>${esc(d.conexoes)}</td><td class="mono muted">${esc(d.primeiro_visto)}</td><td class="mono muted">${esc(d.ultimo_visto)}</td>
+    </tr>`).join('') : emptyRow(7,'Nenhum dispositivo observado.');
+}
+
+async function refreshAudit() {
+    const {dados} = await api('/api/audit?limit=150');
+    document.getElementById('auditBody').innerHTML = dados.length ? dados.map(a => `<tr>
+        <td class="mono muted">${esc(a.timestamp_acao)}</td><td>${esc(a.usuario_analista)}</td><td>${badge(a.acao_realizada,'yellow')}</td><td>${esc(a.detalhes || '—')}</td><td class="mono">${esc(a.ip_origem_analista || '—')}</td>
+    </tr>`).join('') : emptyRow(5,'Nenhum registro de auditoria.');
+}
+
+async function refreshActive() {
+    if (refreshBusy) return;
+    refreshBusy = true;
+    try {
+        await refreshStatus();
+        if (activeTab === 'dashboard') await refreshFlows();
+        if (activeTab === 'alerts') await refreshAlerts();
+        if (activeTab === 'ip-policy') await refreshIpPolicies();
+        if (activeTab === 'domains') await refreshDomains();
+        if (activeTab === 'devices') await refreshDevices();
+        if (activeTab === 'audit') await refreshAudit();
+    } catch (e) { console.error(e); }
+    finally { refreshBusy = false; }
+}
+
+async function loadInterfaces() {
+    try {
+        const [interfaces, status] = await Promise.all([api('/api/capture/interfaces'), api('/api/status')]);
+        const select = document.getElementById('interfaceSelect');
+        select.innerHTML = '<option value="">Automática</option>' + interfaces.dados.map(i => `<option value="${esc(i)}">${esc(i)}</option>`).join('');
+        if (status.dados.interface !== 'Automática') select.value = status.dados.interface;
+    } catch (e) { console.error(e); }
+}
+
+async function action(url, method='POST', body=null) {
+    try {
+        const result = await api(url, {method, body});
+        toast(result.mensagem || 'Ação concluída.', true);
+        await refreshActive();
+        return result;
+    } catch (e) { toast(e.message, false); throw e; }
+}
+
+document.querySelectorAll('.nav-button').forEach(btn => btn.addEventListener('click', () => {
+    document.querySelectorAll('.nav-button').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active'); activeTab = btn.dataset.tab;
+    document.getElementById(activeTab).classList.add('active'); refreshActive();
+}));
+
+document.getElementById('startCapture').addEventListener('click', () => action('/api/capture/start'));
+document.getElementById('stopCapture').addEventListener('click', () => action('/api/capture/stop'));
+document.getElementById('saveInterface').addEventListener('click', () => action('/api/capture/interface','POST',{interface:document.getElementById('interfaceSelect').value}));
+
+document.getElementById('ipBlacklistForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    await action('/api/ip-blacklist','POST',{ip:document.getElementById('blacklistIp').value, motivo:document.getElementById('blacklistReason').value});
+    document.getElementById('blacklistIp').value = ''; document.getElementById('blacklistReason').value = '';
+});
+
+document.getElementById('domainForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const result = await action('/api/domain-blacklist','POST',{
+        domain:document.getElementById('domainName').value,
+        client_ip:document.getElementById('domainClient').value || '*',
+        mode:document.getElementById('domainMode').value
+    });
+    if (result.enforced === false) toast(result.mensagem, false);
+    document.getElementById('domainName').value = '';
+});
+
+document.getElementById('refreshDomains').addEventListener('click', refreshDomains);
+document.getElementById('domainSeconds').addEventListener('change', refreshDomains);
+
+document.addEventListener('click', async e => {
+    const button = e.target.closest('[data-action]'); if (!button) return;
+    const type = button.dataset.action;
+    try {
+        if (type === 'blacklist') {
+            const reason = prompt(`Motivo para adicionar ${button.dataset.ip} à blacklist:`, 'Classificação manual pela Central Web');
+            if (reason === null) return;
+            await action('/api/ip-blacklist','POST',{ip:button.dataset.ip,motivo:reason});
+        }
+        if (type === 'block') await action(`/api/ip-block/${encodeURIComponent(button.dataset.ip)}`,'POST');
+        if (type === 'unblock') await action(`/api/ip-block/${encodeURIComponent(button.dataset.ip)}`,'DELETE');
+        if (type === 'remove-blacklist') await action(`/api/ip-blacklist/${encodeURIComponent(button.dataset.ip)}`,'DELETE');
+        if (type === 'remove-domain') await action('/api/domain-blacklist','DELETE',{domain:button.dataset.domain,client_ip:button.dataset.client});
+    } catch (_) {}
+});
+
+loadInterfaces();
+refreshActive();
+setInterval(refreshActive, 2000);
+</script>
+</body>
+</html>

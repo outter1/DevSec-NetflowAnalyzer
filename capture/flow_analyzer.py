@@ -11,8 +11,10 @@ isolada e reutilizável (ex.: em testes automatizados ou em um modo CLI).
 from datetime import datetime
 
 try:
-    from scapy.all import IP, TCP, UDP
-except ImportError:  # pragma: no cover - só ocorre se o Scapy não estiver instalado
+    from scapy.config import conf
+    conf.ipv6_enabled = False
+    from scapy.layers.inet import IP, TCP, UDP
+except Exception:  # pragma: no cover - Scapy ausente ou indisponível no SO
     IP = TCP = UDP = None
 
 

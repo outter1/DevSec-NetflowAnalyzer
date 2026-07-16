@@ -13,7 +13,16 @@ Uso típico:
 
 import threading
 
-from scapy.all import sniff
+try:
+    from scapy.config import conf
+    conf.ipv6_enabled = False
+    from scapy.sendrecv import sniff
+    from scapy.interfaces import get_if_list
+    ERRO_IMPORTACAO_SCAPY = None
+except Exception as erro:  # Scapy ausente ou falha específica do sistema
+    sniff = None
+    get_if_list = None
+    ERRO_IMPORTACAO_SCAPY = str(erro)
 
 
 class PacketCapture:
@@ -39,19 +48,30 @@ class PacketCapture:
     def iniciar(self):
         if self._ativo:
             self.callback_log("A captura já está em execução.")
-            return
+            return True
+
+        if sniff is None:
+            self.callback_log(
+                "[ERRO] Scapy não pôde ser carregado. Instale/atualize as dependências "
+                f"e o driver de captura. Detalhes: {ERRO_IMPORTACAO_SCAPY}"
+            )
+            return False
 
         self._ativo = True
+        self.callback_log("Captura real iniciada.")
         self._thread = threading.Thread(target=self._loop_captura, daemon=True)
         self._thread.start()
-        self.callback_log("Captura real iniciada.")
+        return True
 
     def parar(self):
+        estava_ativa = self._ativo
         self._ativo = False
         self.callback_log("Solicitação para parar captura enviada.")
+        return estava_ativa
 
     def _loop_captura(self):
         self.callback_log("Thread de captura iniciada.")
+        falhou = False
 
         while self._ativo:
             try:
@@ -63,18 +83,19 @@ class PacketCapture:
                     filter=self.filtro_bpf,
                 )
             except Exception as erro:
+                falhou = True
                 self._ativo = False
                 self.callback_log(f"[ERRO] Falha na captura: {erro}")
                 break
 
-        self.callback_log("Thread de captura encerrada.")
+        if not falhou:
+            self.callback_log("Thread de captura encerrada.")
 
     @staticmethod
     def listar_interfaces():
         """Devolve a lista de interfaces de rede disponíveis para o usuário
         escolher na tela de Configurações."""
         try:
-            from scapy.all import get_if_list
-            return get_if_list()
+            return get_if_list() if get_if_list is not None else []
         except Exception:
             return []

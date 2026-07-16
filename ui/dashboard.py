@@ -1,73 +1,107 @@
-"""
-Tela de Dashboard: resumo geral do estado do sistema.
-
-Recebe a instância da MainWindow (app) para ler o estado compartilhado
-(fluxos, alertas, bloqueios, status de captura) sem duplicar dados.
-"""
+"""Visão geral operacional do DevSec."""
 
 import customtkinter as ctk
-from ui.theme import COLORS, dark_button, danger_button, secondary_button
+
+from ui.components import MetricCard, PageHeader, Panel, clear_table, create_table, severity_tag
+from ui.theme import COLORS, FONT, dark_button, danger_button, primary_button
 
 
 class DashboardFrame(ctk.CTkFrame):
     def __init__(self, master, app):
         super().__init__(master, fg_color="transparent")
         self.app = app
-
-        self.rotulos_cards = {}
+        self.cards = {}
+        self._ultima_assinatura = None
         self._criar_layout()
         self.atualizar()
 
     def _criar_layout(self):
-        frame_cards = ctk.CTkFrame(self, fg_color="transparent")
-        frame_cards.pack(fill="x", padx=20, pady=20)
+        PageHeader(
+            self,
+            "Central operacional",
+            "Dados reais da captura e do SQLite, atualizados enquanto o programa estiver aberto.",
+        )
+
+        cards = ctk.CTkFrame(self, fg_color="transparent")
+        cards.pack(fill="x", pady=(0, 16))
+        for coluna in range(3):
+            cards.grid_columnconfigure(coluna, weight=1, uniform="metric")
 
         definicoes = [
-            ("total_fluxos", "Fluxos monitorados"),
-            ("total_suspeitos", "IPs suspeitos"),
-            ("total_bloqueados", "IPs bloqueados"),
-            ("total_dispositivos", "Dispositivos"),
-            ("status_captura", "Captura"),
+            ("total_fluxos", "Fluxos", COLORS["blue_soft"]),
+            ("total_alertas", "Alertas", COLORS["red_light"]),
+            ("total_bloqueados", "IPs bloqueados", COLORS["red_light"]),
+            ("total_blacklist", "Blacklist IP", COLORS["yellow_soft"]),
+            ("dominios_recentes", "Domínios / 30s", COLORS["green_soft"]),
+            ("total_dispositivos", "Dispositivos", COLORS["blue_soft"]),
         ]
+        for indice, (chave, titulo, cor) in enumerate(definicoes):
+            card = MetricCard(cards, titulo, accent=cor)
+            card.grid(row=indice // 3, column=indice % 3, sticky="nsew", padx=6, pady=6)
+            self.cards[chave] = card
 
-        for chave, titulo in definicoes:
-            card = ctk.CTkFrame(frame_cards, width=210, height=110, corner_radius=12)
-            card.pack(side="left", padx=10, pady=10)
-            card.pack_propagate(False)
+        status_panel = Panel(self, "Estado da captura")
+        status_panel.pack(fill="x", pady=(0, 16))
+        status_body = ctk.CTkFrame(status_panel, fg_color="transparent")
+        status_body.pack(fill="x", padx=18, pady=15)
+        self.status_dot = ctk.CTkLabel(status_body, text="●", font=(FONT, 18), width=24)
+        self.status_dot.pack(side="left")
+        self.status_text = ctk.CTkLabel(status_body, text="Captura parada", font=(FONT, 13, "bold"))
+        self.status_text.pack(side="left", padx=(4, 12))
+        self.status_detail = ctk.CTkLabel(
+            status_body, text="", text_color=COLORS["muted"], font=(FONT, 11)
+        )
+        self.status_detail.pack(side="left")
+        ctk.CTkButton(
+            status_body, text="Parar", width=90, command=self.app.parar_captura, **danger_button()
+        ).pack(side="right", padx=(8, 0))
+        ctk.CTkButton(
+            status_body, text="Iniciar", width=90, command=self.app.iniciar_captura, **primary_button()
+        ).pack(side="right")
 
-            ctk.CTkLabel(card, text=titulo, font=("Arial", 14)).pack(pady=(16, 4))
-
-            valor = ctk.CTkLabel(card, text="0", font=("Arial", 24, "bold"))
-            valor.pack()
-
-            self.rotulos_cards[chave] = valor
-
-        frame_info = ctk.CTkFrame(self, fg_color="transparent")
-        frame_info.pack(fill="x", padx=20, pady=10)
-
-        ctk.CTkLabel(
-            frame_info,
-            text=(
-                "Use a tela Captura para iniciar a análise de tráfego em tempo real.\n"
-                "Use Alertas para investigar, classificar ou bloquear IPs suspeitos.\n"
-                "Use Relatórios para exportar evidências (CSV/PDF) para investigação forense."
-            ),
-            font=("Arial", 15),
-            justify="left",
-        ).pack(anchor="w", pady=10)
-
-        botao_atualizar = ctk.CTkButton(self, text="Atualizar Dashboard", command=self.atualizar)
-        botao_atualizar.pack(anchor="w", padx=20, pady=10)
+        recent_panel = Panel(self, "Fluxos recentes", "A tabela mostra somente tráfego realmente persistido.")
+        recent_panel.pack(fill="both", expand=True)
+        columns = ("ultimo", "origem", "po", "destino", "pd", "protocolo", "pacotes", "bytes")
+        headings = {
+            "ultimo": "ÚLTIMO EVENTO",
+            "origem": "ORIGEM",
+            "po": "PORTA",
+            "destino": "DESTINO",
+            "pd": "PORTA",
+            "protocolo": "PROTOCOLO",
+            "pacotes": "PACOTES",
+            "bytes": "BYTES",
+        }
+        widths = {"ultimo": 145, "origem": 135, "po": 70, "destino": 135, "pd": 70, "protocolo": 90}
+        host, self.table = create_table(recent_panel, columns, headings, widths, height=12)
+        host.pack(fill="both", expand=True, padx=12, pady=12)
 
     def atualizar(self):
-        total_fluxos = len(self.app.analisador_fluxos.obter_fluxos())
-        total_suspeitos = len(self.app.db.listar_alertas())
-        total_bloqueados = len(self.app.db.listar_ips_bloqueados())
-        total_dispositivos = len(self.app.db.listar_dispositivos())
-        status = "Ativa" if self.app.captura.ativo else "Parada"
+        resumo = self.app.db.obter_resumo(segundos_dominios=30)
+        assinatura = tuple(resumo.get(k, 0) for k in sorted(resumo)) + (self.app.captura.ativo,)
+        for chave, card in self.cards.items():
+            card.set(resumo.get(chave, 0))
 
-        self.rotulos_cards["total_fluxos"].configure(text=str(total_fluxos))
-        self.rotulos_cards["total_suspeitos"].configure(text=str(total_suspeitos))
-        self.rotulos_cards["total_bloqueados"].configure(text=str(total_bloqueados))
-        self.rotulos_cards["total_dispositivos"].configure(text=str(total_dispositivos))
-        self.rotulos_cards["status_captura"].configure(text=status)
+        ativa = self.app.captura.ativo
+        self.status_dot.configure(text_color=COLORS["green"] if ativa else COLORS["red"])
+        self.status_text.configure(text="Captura ativa" if ativa else "Captura parada")
+        interface = self.app.captura.interface or "interface automática"
+        self.status_detail.configure(text=f"Interface: {interface}")
+
+        if assinatura != self._ultima_assinatura:
+            clear_table(self.table)
+            for fluxo in self.app.db.listar_fluxos(limite=80):
+                self.table.insert(
+                    "",
+                    "end",
+                    values=(
+                        fluxo["ultimo_evento"], fluxo["ip_origem"], fluxo["porta_origem"],
+                        fluxo["ip_destino"], fluxo["porta_destino"], fluxo["protocolo"],
+                        fluxo["pacotes"], fluxo["bytes"],
+                    ),
+                    tags=("info",),
+                )
+            self._ultima_assinatura = assinatura
+
+    def atualizar_automatico(self):
+        self.atualizar()

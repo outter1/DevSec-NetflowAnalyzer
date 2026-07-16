@@ -15,7 +15,7 @@ import json
 import os
 import sqlite3
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from database.models import TABELAS, CONFIGURACOES_PADRAO
 
@@ -268,24 +268,41 @@ class Database:
             self._conexao.commit()
 
     def atualizar_status_ip(self, ip, status, severidade=None, motivo=None):
+        """Atualiza o alerta do IP e cria o registro quando ele ainda não existe.
+
+        A versão anterior executava apenas ``UPDATE``. Assim, adicionar um IP
+        diretamente à blacklist ou bloqueá-lo não aparecia na tela de alertas
+        quando aquele IP ainda não tinha sido detectado pelo motor.
+        """
         agora = self._agora()
 
         with self._lock:
             cursor = self._conexao.cursor()
+            cursor.execute("SELECT severidade, motivo, eventos, primeiro_evento FROM alertas WHERE ip = ?", (ip,))
+            existente = cursor.fetchone()
 
-            if severidade is not None and motivo is not None:
+            severidade_final = severidade or (existente["severidade"] if existente else "MÉDIO")
+            motivo_final = motivo or (existente["motivo"] if existente else f"Status alterado para {status}")
+
+            if existente is None:
                 cursor.execute(
                     """
-                    UPDATE alertas
-                    SET status = ?, severidade = ?, motivo = ?, ultimo_evento = ?
-                    WHERE ip = ?
+                    INSERT INTO alertas (
+                        ip, severidade, motivo, status, eventos,
+                        primeiro_evento, ultimo_evento
+                    ) VALUES (?, ?, ?, ?, 1, ?, ?)
                     """,
-                    (status, severidade, motivo, agora, ip),
+                    (ip, severidade_final, motivo_final, status, agora, agora),
                 )
             else:
                 cursor.execute(
-                    "UPDATE alertas SET status = ?, ultimo_evento = ? WHERE ip = ?",
-                    (status, agora, ip),
+                    """
+                    UPDATE alertas
+                    SET status = ?, severidade = ?, motivo = ?,
+                        eventos = eventos + 1, ultimo_evento = ?
+                    WHERE ip = ?
+                    """,
+                    (status, severidade_final, motivo_final, agora, ip),
                 )
 
             self._conexao.commit()
@@ -348,6 +365,33 @@ class Database:
             return [dict(linha) for linha in cursor.fetchall()]
 
     # ------------------------------------------------------------------ #
+    # Auditoria da interface web
+    # ------------------------------------------------------------------ #
+    def registrar_auditoria(self, usuario, acao, detalhes=None, ip_origem=None):
+        with self._lock:
+            cursor = self._conexao.cursor()
+            cursor.execute(
+                """
+                INSERT INTO logs_auditoria (
+                    timestamp_acao, usuario_analista, acao_realizada,
+                    detalhes, ip_origem_analista
+                ) VALUES (?, ?, ?, ?, ?)
+                """,
+                (self._agora(), usuario, acao, detalhes, ip_origem),
+            )
+            self._conexao.commit()
+
+    def listar_auditoria(self, limite=100):
+        limite = max(1, min(int(limite), 2000))
+        with self._lock:
+            cursor = self._conexao.cursor()
+            cursor.execute(
+                "SELECT * FROM logs_auditoria ORDER BY id DESC LIMIT ?",
+                (limite,),
+            )
+            return [dict(linha) for linha in cursor.fetchall()]
+
+    # ------------------------------------------------------------------ #
     # IPs bloqueados / whitelist
     # ------------------------------------------------------------------ #
     def bloquear_ip(self, ip):
@@ -368,8 +412,41 @@ class Database:
     def listar_ips_bloqueados(self):
         with self._lock:
             cursor = self._conexao.cursor()
-            cursor.execute("SELECT ip FROM ips_bloqueados")
+            cursor.execute("SELECT ip FROM ips_bloqueados ORDER BY bloqueado_em DESC")
             return [linha["ip"] for linha in cursor.fetchall()]
+
+    def listar_ips_bloqueados_detalhes(self):
+        with self._lock:
+            cursor = self._conexao.cursor()
+            cursor.execute("SELECT * FROM ips_bloqueados ORDER BY bloqueado_em DESC")
+            return [dict(linha) for linha in cursor.fetchall()]
+
+    def adicionar_ip_blacklist(self, ip, motivo=None):
+        with self._lock:
+            cursor = self._conexao.cursor()
+            cursor.execute(
+                """
+                INSERT INTO ip_blacklist (ip, motivo, adicionado_em)
+                VALUES (?, ?, ?)
+                ON CONFLICT(ip) DO UPDATE SET
+                    motivo = excluded.motivo,
+                    adicionado_em = excluded.adicionado_em
+                """,
+                (ip, motivo, self._agora()),
+            )
+            self._conexao.commit()
+
+    def remover_ip_blacklist(self, ip):
+        with self._lock:
+            cursor = self._conexao.cursor()
+            cursor.execute("DELETE FROM ip_blacklist WHERE ip = ?", (ip,))
+            self._conexao.commit()
+
+    def listar_ip_blacklist(self):
+        with self._lock:
+            cursor = self._conexao.cursor()
+            cursor.execute("SELECT * FROM ip_blacklist ORDER BY adicionado_em DESC")
+            return [dict(linha) for linha in cursor.fetchall()]
 
     def adicionar_whitelist(self, ip):
         with self._lock:
@@ -470,6 +547,205 @@ class Database:
             cursor = self._conexao.cursor()
             cursor.execute("SELECT * FROM dispositivos ORDER BY ultimo_visto DESC")
             return [dict(linha) for linha in cursor.fetchall()]
+
+    # ------------------------------------------------------------------ #
+    # Domínios observados / blacklist de domínios
+    # ------------------------------------------------------------------ #
+    def registrar_dominios_lote(self, observacoes):
+        if not observacoes:
+            return
+
+        agora = self._agora()
+        linhas = []
+        for item in observacoes:
+            dominio = (item.get("dominio") or "").strip().lower().rstrip(".")
+            ip_cliente = (item.get("ip_cliente") or "").strip()
+            if not dominio or not ip_cliente:
+                continue
+            linhas.append(
+                (
+                    ip_cliente,
+                    dominio,
+                    item.get("ip_destino"),
+                    item.get("porta_destino"),
+                    item.get("fonte") or "DESCONHECIDA",
+                    1 if item.get("bloqueado_pela_politica") else 0,
+                    item.get("observado_em") or agora,
+                )
+            )
+
+        if not linhas:
+            return
+
+        with self._lock:
+            cursor = self._conexao.cursor()
+            cursor.executemany(
+                """
+                INSERT INTO dominios_acessados (
+                    ip_cliente, dominio, ip_destino, porta_destino,
+                    fonte, bloqueado_pela_politica, observado_em
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                linhas,
+            )
+            self._conexao.commit()
+
+    def listar_dominios_recentes(self, segundos=30, limite=500, ip_cliente=None, dominio=None):
+        segundos = max(1, min(int(segundos), 86400))
+        limite = max(1, min(int(limite), 5000))
+        desde = (datetime.now() - timedelta(seconds=segundos)).strftime("%Y-%m-%d %H:%M:%S")
+
+        filtros = ["observado_em >= ?"]
+        parametros = [desde]
+        if ip_cliente:
+            filtros.append("ip_cliente = ?")
+            parametros.append(ip_cliente)
+        if dominio:
+            filtros.append("dominio LIKE ?")
+            parametros.append(f"%{dominio.lower()}%")
+
+        parametros.append(limite)
+        sql = f"""
+            SELECT * FROM dominios_acessados
+            WHERE {' AND '.join(filtros)}
+            ORDER BY observado_em DESC, id DESC
+            LIMIT ?
+        """
+        with self._lock:
+            cursor = self._conexao.cursor()
+            cursor.execute(sql, tuple(parametros))
+            return [dict(linha) for linha in cursor.fetchall()]
+
+    def limpar_dominios_antigos(self, horas=168):
+        horas = max(1, int(horas))
+        limite = (datetime.now() - timedelta(hours=horas)).strftime("%Y-%m-%d %H:%M:%S")
+        with self._lock:
+            cursor = self._conexao.cursor()
+            cursor.execute("DELETE FROM dominios_acessados WHERE observado_em < ?", (limite,))
+            removidos = cursor.rowcount
+            self._conexao.commit()
+            return removidos
+
+    def adicionar_domain_blacklist(self, dominio, ip_cliente="*", modo="monitorar"):
+        agora = self._agora()
+        with self._lock:
+            cursor = self._conexao.cursor()
+            cursor.execute(
+                """
+                INSERT INTO domain_blacklist (
+                    dominio, ip_cliente, modo, ativo, ips_resolvidos,
+                    ultimo_erro, adicionado_em, atualizado_em
+                ) VALUES (?, ?, ?, 1, '[]', NULL, ?, ?)
+                ON CONFLICT(dominio, ip_cliente) DO UPDATE SET
+                    modo = excluded.modo,
+                    ativo = 1,
+                    atualizado_em = excluded.atualizado_em,
+                    ultimo_erro = NULL
+                """,
+                (dominio, ip_cliente, modo, agora, agora),
+            )
+            self._conexao.commit()
+
+    def remover_domain_blacklist(self, dominio, ip_cliente="*"):
+        with self._lock:
+            cursor = self._conexao.cursor()
+            cursor.execute(
+                "DELETE FROM domain_blacklist WHERE dominio = ? AND ip_cliente = ?",
+                (dominio, ip_cliente),
+            )
+            self._conexao.commit()
+
+    def listar_domain_blacklist(self, somente_ativos=False):
+        with self._lock:
+            cursor = self._conexao.cursor()
+            if somente_ativos:
+                cursor.execute(
+                    "SELECT * FROM domain_blacklist WHERE ativo = 1 ORDER BY atualizado_em DESC"
+                )
+            else:
+                cursor.execute("SELECT * FROM domain_blacklist ORDER BY atualizado_em DESC")
+            resultado = []
+            for linha in cursor.fetchall():
+                item = dict(linha)
+                try:
+                    item["ips_resolvidos"] = json.loads(item.get("ips_resolvidos") or "[]")
+                except json.JSONDecodeError:
+                    item["ips_resolvidos"] = []
+                resultado.append(item)
+            return resultado
+
+    def obter_domain_blacklist(self, dominio, ip_cliente="*"):
+        with self._lock:
+            cursor = self._conexao.cursor()
+            cursor.execute(
+                "SELECT * FROM domain_blacklist WHERE dominio = ? AND ip_cliente = ?",
+                (dominio, ip_cliente),
+            )
+            linha = cursor.fetchone()
+            if not linha:
+                return None
+            item = dict(linha)
+            try:
+                item["ips_resolvidos"] = json.loads(item.get("ips_resolvidos") or "[]")
+            except json.JSONDecodeError:
+                item["ips_resolvidos"] = []
+            return item
+
+    def atualizar_resolucao_domain_blacklist(self, dominio, ip_cliente, ips, erro=None):
+        with self._lock:
+            cursor = self._conexao.cursor()
+            cursor.execute(
+                """
+                UPDATE domain_blacklist
+                SET ips_resolvidos = ?, ultimo_erro = ?, atualizado_em = ?
+                WHERE dominio = ? AND ip_cliente = ?
+                """,
+                (json.dumps(sorted(set(ips))), erro, self._agora(), dominio, ip_cliente),
+            )
+            self._conexao.commit()
+
+    def dominio_esta_bloqueado(self, dominio, ip_cliente):
+        dominio = dominio.lower().rstrip(".")
+        with self._lock:
+            cursor = self._conexao.cursor()
+            cursor.execute(
+                """
+                SELECT * FROM domain_blacklist
+                WHERE ativo = 1
+                  AND (ip_cliente = '*' OR ip_cliente = ?)
+                  AND (? = dominio OR ? LIKE '%.' || dominio)
+                ORDER BY CASE WHEN ip_cliente = ? THEN 0 ELSE 1 END
+                LIMIT 1
+                """,
+                (ip_cliente, dominio, dominio, ip_cliente),
+            )
+            linha = cursor.fetchone()
+            return dict(linha) if linha else None
+
+    def obter_resumo(self, segundos_dominios=30):
+        desde = (datetime.now() - timedelta(seconds=max(1, int(segundos_dominios)))).strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+        with self._lock:
+            cursor = self._conexao.cursor()
+            tabelas = {
+                "total_fluxos": "fluxos",
+                "total_alertas": "alertas",
+                "total_bloqueados": "ips_bloqueados",
+                "total_blacklist": "ip_blacklist",
+                "total_dispositivos": "dispositivos",
+                "total_domain_blacklist": "domain_blacklist",
+            }
+            resumo = {}
+            for chave, tabela in tabelas.items():
+                cursor.execute(f"SELECT COUNT(*) AS total FROM {tabela}")
+                resumo[chave] = int(cursor.fetchone()["total"])
+            cursor.execute(
+                "SELECT COUNT(*) AS total FROM dominios_acessados WHERE observado_em >= ?",
+                (desde,),
+            )
+            resumo["dominios_recentes"] = int(cursor.fetchone()["total"])
+            return resumo
 
     # ------------------------------------------------------------------ #
     # Configurações

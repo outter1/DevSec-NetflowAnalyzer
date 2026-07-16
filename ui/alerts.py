@@ -1,168 +1,181 @@
-"""
-Tela de Alertas: lista os IPs suspeitos (persistidos no banco de dados) e
-permite classificar, colocar em whitelist, bloquear/desbloquear no firewall
-e exportar um relatório PDF de investigação para aquele IP.
-
-Toda a lógica de negócio (bloqueio real, persistência) fica na MainWindow
-(`app`); esta classe cuida só da apresentação e repassa as ações do usuário.
-"""
+"""Investigação e resposta aos alertas de IP."""
 
 import os
-from tkinter import filedialog, ttk
-
+from tkinter import filedialog
 import customtkinter as ctk
-from ui.theme import COLORS, dark_button, danger_button, secondary_button
+
+from ui.components import PageHeader, Panel, clear_table, create_table, selected_values, severity_tag
+from ui.theme import COLORS, dark_button, danger_button, primary_button, success_button
 
 
 class AlertsFrame(ctk.CTkFrame):
     def __init__(self, master, app):
         super().__init__(master, fg_color="transparent")
         self.app = app
-        self.tabela = None
-        self.caixa_info = None
-
+        self._signature = None
         self._criar_layout()
-        self.recarregar()
+        self.recarregar(force=True)
 
     def _criar_layout(self):
-        frame_acoes = ctk.CTkFrame(self, fg_color="transparent")
-        frame_acoes.pack(fill="x", padx=20, pady=10)
+        PageHeader(self, "Alertas", "Classifique, investigue e responda aos IPs detectados pelo motor.")
 
-        botoes = [
-            ("Atualizar Lista", self.recarregar, None),
-            ("Classificar como Normal", self._classificar_normal, None),
-            ("Marcar como Crítico", self._classificar_critico, COLORS["red"]),
-            ("Adicionar à Whitelist", self._adicionar_whitelist, None),
-            ("Bloquear IP", self._bloquear, COLORS["red"]),
-            ("Remover Bloqueio", self._desbloquear, None),
-            ("Exportar Relatório do IP (PDF)", self._exportar_pdf_ip, None),
+        actions = Panel(self, "Ações do analista")
+        actions.pack(fill="x", pady=(0, 12))
+        grid = ctk.CTkFrame(actions, fg_color="transparent")
+        grid.pack(fill="x", padx=12, pady=12)
+        for col in range(4):
+            grid.grid_columnconfigure(col, weight=1, uniform="alert_action")
+        buttons = [
+            ("Normal", self._normal, success_button()),
+            ("Crítico", self._critical, danger_button()),
+            ("Whitelist", self._whitelist, dark_button()),
+            ("Blacklist", self._blacklist, dark_button()),
+            ("Bloquear IP", self._block, danger_button()),
+            ("Desbloquear", self._unblock, dark_button()),
+            ("Exportar PDF", self._export_pdf, dark_button()),
+            ("Atualizar", lambda: self.recarregar(True), primary_button()),
         ]
-
-        for texto, comando, cor in botoes:
-            kwargs = {"height": 36, "command": comando}
-            if cor:
-                kwargs["fg_color"] = cor
-            ctk.CTkButton(frame_acoes, text=texto, **kwargs).pack(side="left", padx=6, pady=8)
-
-        frame_tabela = ctk.CTkFrame(self, fg_color="transparent")
-        frame_tabela.pack(fill="both", expand=True, padx=20, pady=10)
-
-        colunas = ("ip", "severidade", "motivo", "status", "eventos", "ultimo")
-
-        self.tabela = ttk.Treeview(frame_tabela, columns=colunas, show="headings", height=17)
-
-        titulos = {
-            "ip": "IP",
-            "severidade": "Severidade",
-            "motivo": "Motivo",
-            "status": "Status",
-            "eventos": "Eventos",
-            "ultimo": "Último Evento",
-        }
-        larguras = {
-            "ip": 150,
-            "severidade": 110,
-            "motivo": 380,
-            "status": 120,
-            "eventos": 90,
-            "ultimo": 150,
-        }
-
-        for coluna in colunas:
-            self.tabela.heading(coluna, text=titulos[coluna], anchor="w")
-            self.tabela.column(coluna, width=larguras[coluna], anchor="w")
-
-        scrollbar = ttk.Scrollbar(frame_tabela, orient="vertical", command=self.tabela.yview)
-        self.tabela.configure(yscrollcommand=scrollbar.set)
-
-        self.tabela.pack(side="left", fill="both", expand=True, padx=(10, 0), pady=10)
-        scrollbar.pack(side="right", fill="y", padx=(0, 10), pady=10)
-
-        self.caixa_info = ctk.CTkTextbox(self, height=90)
-        self.caixa_info.pack(fill="x", padx=20, pady=10)
-        self.caixa_info.insert(
-            "end",
-            "Selecione um IP na tabela para classificar, colocar em whitelist, bloquear "
-            "ou exportar um relatório de investigação.\n"
-            "O bloqueio real usa o Windows Firewall (netsh) e precisa ser executado como Administrador.\n",
-        )
-
-    # ------------------------------------------------------------------ #
-    def recarregar(self):
-        for item in self.tabela.get_children():
-            self.tabela.delete(item)
-
-        for alerta in self.app.db.listar_alertas():
-            self.tabela.insert(
-                "",
-                "end",
-                values=(
-                    alerta["ip"],
-                    alerta["severidade"],
-                    alerta["motivo"],
-                    alerta["status"],
-                    alerta["eventos"],
-                    alerta["ultimo_evento"],
-                ),
+        for index, (text, command, style) in enumerate(buttons):
+            ctk.CTkButton(grid, text=text, command=command, **style).grid(
+                row=index // 4, column=index % 4, sticky="ew", padx=5, pady=5
             )
 
-    def _ip_selecionado(self):
-        selecionado = self.tabela.selection()
+        self.tabs = ctk.CTkTabview(
+            self,
+            fg_color=COLORS["panel"],
+            border_width=1,
+            border_color=COLORS["border"],
+            corner_radius=14,
+            segmented_button_fg_color=COLORS["panel_alt"],
+            segmented_button_selected_color=COLORS["red"],
+            segmented_button_selected_hover_color=COLORS["red_hover"],
+            segmented_button_unselected_color=COLORS["panel_alt"],
+            segmented_button_unselected_hover_color=COLORS["border"],
+            text_color=COLORS["text"],
+        )
+        self.tabs.pack(fill="both", expand=True)
+        alerts_tab = self.tabs.add("Alertas e classificação")
+        context_tab = self.tabs.add("Contexto selecionado")
+        alerts_tab.configure(fg_color=COLORS["panel"])
+        context_tab.configure(fg_color=COLORS["panel"])
 
-        if not selecionado:
-            self.app.registrar_alerta_ui("[ERRO] Selecione um IP na tabela de alertas.")
+        columns = ("ip", "severity", "reason", "status", "events", "last")
+        headings = {
+            "ip": "IP", "severity": "SEVERIDADE", "reason": "MOTIVO",
+            "status": "STATUS", "events": "EVENTOS", "last": "ÚLTIMO EVENTO",
+        }
+        widths = {"ip": 145, "severity": 105, "reason": 420, "status": 120, "events": 75, "last": 150}
+        host, self.table = create_table(alerts_tab, columns, headings, widths, height=13)
+        host.pack(fill="both", expand=True, padx=10, pady=10)
+        self.table.bind("<<TreeviewSelect>>", self._show_details)
+        self.table.bind("<Double-1>", lambda _event: self.tabs.set("Contexto selecionado"))
+
+        self.info = ctk.CTkTextbox(context_tab)
+        self.info.pack(fill="both", expand=True, padx=10, pady=10)
+        self.info.insert("end", "Selecione um IP na tabela para ver a linha do tempo recente.\n")
+
+    def recarregar(self, force=False):
+        alerts = self.app.db.listar_alertas()
+        signature = tuple((a["ip"], a["status"], a["eventos"], a["ultimo_evento"]) for a in alerts)
+        if not force and signature == self._signature:
+            return
+        selected_ip = None
+        values = selected_values(self.table)
+        if values:
+            selected_ip = values[0]
+        clear_table(self.table)
+        selected_item = None
+        for alert in alerts:
+            tag = severity_tag(alert["severidade"] + " " + alert["status"])
+            item = self.table.insert(
+                "", "end",
+                values=(alert["ip"], alert["severidade"], alert["motivo"], alert["status"], alert["eventos"], alert["ultimo_evento"]),
+                tags=(tag,),
+            )
+            if alert["ip"] == selected_ip:
+                selected_item = item
+        if selected_item:
+            self.table.selection_set(selected_item)
+        self._signature = signature
+
+    def _selected_ip(self, warn=True):
+        values = selected_values(self.table)
+        if not values:
+            if warn:
+                self.app.registrar_alerta_ui("[ERRO] Selecione um IP na tabela de alertas.")
             return None
+        return values[0]
 
-        valores = self.tabela.item(selecionado[0], "values")
-        return valores[0] if valores else None
-
-    def _classificar_normal(self):
-        ip = self._ip_selecionado()
-        if ip:
-            self.app.classificar_ip_normal(ip)
-            self.recarregar()
-
-    def _classificar_critico(self):
-        ip = self._ip_selecionado()
-        if ip:
-            self.app.classificar_ip_critico(ip)
-            self.recarregar()
-
-    def _adicionar_whitelist(self):
-        ip = self._ip_selecionado()
-        if ip:
-            self.app.adicionar_ip_whitelist(ip)
-            self.recarregar()
-
-    def _bloquear(self):
-        ip = self._ip_selecionado()
-        if ip:
-            self.app.bloquear_ip_selecionado(ip)
-            self.recarregar()
-
-    def _desbloquear(self):
-        ip = self._ip_selecionado()
-        if ip:
-            self.app.desbloquear_ip_selecionado(ip)
-            self.recarregar()
-
-    def _exportar_pdf_ip(self):
-        ip = self._ip_selecionado()
+    def _show_details(self, _event=None):
+        ip = self._selected_ip(warn=False)
         if not ip:
             return
+        alert = self.app.db.obter_alerta(ip) or {}
+        logs = self.app.db.listar_log(limite=40, ip=ip)
+        self.info.delete("1.0", "end")
+        self.info.insert("end", f"IP: {ip}\n")
+        self.info.insert("end", f"Status: {alert.get('status', '-')}\n")
+        self.info.insert("end", f"Severidade: {alert.get('severidade', '-')}\n")
+        self.info.insert("end", f"Primeiro evento: {alert.get('primeiro_evento', '-')}\n")
+        self.info.insert("end", f"Último evento: {alert.get('ultimo_evento', '-')}\n")
+        self.info.insert("end", f"Total de eventos: {alert.get('eventos', '-')}\n")
+        self.info.insert("end", f"Motivo atual: {alert.get('motivo', '-')}\n\nLINHA DO TEMPO\n")
+        if not logs:
+            self.info.insert("end", "Nenhum log detalhado registrado para este IP.\n")
+        for log in reversed(logs):
+            self.info.insert("end", f"• {log['data_hora']} — {log['mensagem']}\n")
 
-        caminho_sugerido = f"relatorio_{ip.replace('.', '_')}.pdf"
-        caminho = filedialog.asksaveasfilename(
-            defaultextension=".pdf",
-            initialfile=caminho_sugerido,
+    def _normal(self):
+        ip = self._selected_ip()
+        if ip:
+            self.app.classificar_ip_normal(ip)
+            self.recarregar(True)
+
+    def _critical(self):
+        ip = self._selected_ip()
+        if ip:
+            self.app.classificar_ip_critico(ip)
+            self.recarregar(True)
+
+    def _whitelist(self):
+        ip = self._selected_ip()
+        if ip:
+            self.app.adicionar_ip_whitelist(ip)
+            self.recarregar(True)
+
+    def _blacklist(self):
+        ip = self._selected_ip()
+        if ip:
+            self.app.adicionar_ip_blacklist(ip, "Adicionado a partir da tela de alertas")
+            self.recarregar(True)
+
+    def _block(self):
+        ip = self._selected_ip()
+        if ip:
+            self.app.bloquear_ip_selecionado(ip)
+            self.recarregar(True)
+
+    def _unblock(self):
+        ip = self._selected_ip()
+        if ip:
+            self.app.desbloquear_ip_selecionado(ip)
+            self.recarregar(True)
+
+    def _export_pdf(self):
+        ip = self._selected_ip()
+        if not ip:
+            return
+        path = filedialog.asksaveasfilename(
+            defaultextension=".pdf", initialfile=f"relatorio_{ip.replace('.', '_')}.pdf",
             filetypes=[("Arquivo PDF", "*.pdf")],
         )
-
-        if not caminho:
+        if not path:
             return
-
         try:
-            self.app.exportar_relatorio_ip_pdf(ip, caminho)
-            self.app.registrar_alerta_ui(f"Relatório do IP {ip} exportado para {os.path.basename(caminho)}.")
-        except Exception as erro:
-            self.app.registrar_alerta_ui(f"[ERRO] Falha ao exportar relatório: {erro}")
+            self.app.exportar_relatorio_ip_pdf(ip, path)
+            self.app.registrar_alerta_ui(f"Relatório de {ip} exportado para {os.path.basename(path)}.")
+        except Exception as error:
+            self.app.registrar_alerta_ui(f"[ERRO] Falha ao exportar relatório: {error}")
+
+    def atualizar_automatico(self):
+        self.recarregar()

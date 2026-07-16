@@ -1,8 +1,8 @@
 """
-Definições de esquema (schema) do banco de dados SQLite do DevSec - NetFlow Analyzer.
+Definições do schema SQLite do DevSec - NetFlow Analyzer.
 
-Cada string SQL_CRIAR_* cria uma tabela apenas se ela ainda não existir,
-para que o schema possa ser aplicado com segurança toda vez que o app iniciar.
+As instruções usam ``IF NOT EXISTS`` para permitir que instalações antigas
+sejam atualizadas sem apagar fluxos, alertas ou evidências já coletadas.
 """
 
 SQL_CRIAR_FLUXOS = """
@@ -50,6 +50,14 @@ CREATE TABLE IF NOT EXISTS ips_bloqueados (
 );
 """
 
+SQL_CRIAR_IP_BLACKLIST = """
+CREATE TABLE IF NOT EXISTS ip_blacklist (
+    ip TEXT PRIMARY KEY,
+    motivo TEXT,
+    adicionado_em TEXT NOT NULL
+);
+"""
+
 SQL_CRIAR_WHITELIST = """
 CREATE TABLE IF NOT EXISTS whitelist (
     ip TEXT PRIMARY KEY,
@@ -69,6 +77,45 @@ CREATE TABLE IF NOT EXISTS dispositivos (
 );
 """
 
+SQL_CRIAR_DOMINIOS_ACESSADOS = """
+CREATE TABLE IF NOT EXISTS dominios_acessados (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ip_cliente TEXT NOT NULL,
+    dominio TEXT NOT NULL,
+    ip_destino TEXT,
+    porta_destino INTEGER,
+    fonte TEXT NOT NULL,
+    bloqueado_pela_politica INTEGER NOT NULL DEFAULT 0,
+    observado_em TEXT NOT NULL
+);
+"""
+
+SQL_CRIAR_DOMAIN_BLACKLIST = """
+CREATE TABLE IF NOT EXISTS domain_blacklist (
+    dominio TEXT NOT NULL,
+    ip_cliente TEXT NOT NULL DEFAULT '*',
+    modo TEXT NOT NULL DEFAULT 'monitorar',
+    ativo INTEGER NOT NULL DEFAULT 1,
+    ips_resolvidos TEXT NOT NULL DEFAULT '[]',
+    ultimo_erro TEXT,
+    adicionado_em TEXT NOT NULL,
+    atualizado_em TEXT NOT NULL,
+    PRIMARY KEY (dominio, ip_cliente)
+);
+"""
+
+
+SQL_CRIAR_LOGS_AUDITORIA = """
+CREATE TABLE IF NOT EXISTS logs_auditoria (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp_acao TEXT NOT NULL,
+    usuario_analista TEXT NOT NULL,
+    acao_realizada TEXT NOT NULL,
+    detalhes TEXT,
+    ip_origem_analista TEXT
+);
+"""
+
 SQL_CRIAR_CONFIGURACOES = """
 CREATE TABLE IF NOT EXISTS configuracoes (
     chave TEXT PRIMARY KEY,
@@ -76,17 +123,50 @@ CREATE TABLE IF NOT EXISTS configuracoes (
 );
 """
 
+SQL_INDICE_FLUXOS_ULTIMO = """
+CREATE INDEX IF NOT EXISTS idx_fluxos_ultimo_evento
+ON fluxos(ultimo_evento DESC);
+"""
+
+SQL_INDICE_ALERTAS_ULTIMO = """
+CREATE INDEX IF NOT EXISTS idx_alertas_ultimo_evento
+ON alertas(ultimo_evento DESC);
+"""
+
+SQL_INDICE_DOMINIOS_TEMPO = """
+CREATE INDEX IF NOT EXISTS idx_dominios_observado_em
+ON dominios_acessados(observado_em DESC);
+"""
+
+SQL_INDICE_DOMINIOS_CLIENTE = """
+CREATE INDEX IF NOT EXISTS idx_dominios_cliente_tempo
+ON dominios_acessados(ip_cliente, observado_em DESC);
+"""
+
+SQL_INDICE_DOMINIOS_NOME = """
+CREATE INDEX IF NOT EXISTS idx_dominios_nome_tempo
+ON dominios_acessados(dominio, observado_em DESC);
+"""
+
 TABELAS = (
     SQL_CRIAR_FLUXOS,
     SQL_CRIAR_ALERTAS,
     SQL_CRIAR_LOG_EVENTOS,
     SQL_CRIAR_IPS_BLOQUEADOS,
+    SQL_CRIAR_IP_BLACKLIST,
     SQL_CRIAR_WHITELIST,
     SQL_CRIAR_DISPOSITIVOS,
+    SQL_CRIAR_DOMINIOS_ACESSADOS,
+    SQL_CRIAR_DOMAIN_BLACKLIST,
+    SQL_CRIAR_LOGS_AUDITORIA,
     SQL_CRIAR_CONFIGURACOES,
+    SQL_INDICE_FLUXOS_ULTIMO,
+    SQL_INDICE_ALERTAS_ULTIMO,
+    SQL_INDICE_DOMINIOS_TEMPO,
+    SQL_INDICE_DOMINIOS_CLIENTE,
+    SQL_INDICE_DOMINIOS_NOME,
 )
 
-# Configurações padrão gravadas na primeira execução (chave -> valor em texto/JSON)
 CONFIGURACOES_PADRAO = {
     "interface_rede": "",
     "portas_sensiveis": (
@@ -97,4 +177,5 @@ CONFIGURACOES_PADRAO = {
     ),
     "limite_portas_scan": "15",
     "janela_scan_segundos": "10",
+    "retencao_dominios_horas": "168",
 }

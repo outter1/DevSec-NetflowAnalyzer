@@ -1,14 +1,11 @@
-"""
-Tela de Relatórios: exporta as evidências coletadas (fluxos e alertas)
-em CSV ou PDF, para uso em investigação forense ou documentação de
-incidentes.
-"""
+"""Exportação das evidências coletadas."""
 
 import os
 from tkinter import filedialog
-
 import customtkinter as ctk
-from ui.theme import COLORS, dark_button, danger_button, secondary_button
+
+from ui.components import PageHeader, Panel
+from ui.theme import COLORS, FONT, dark_button, primary_button
 
 
 class ReportsFrame(ctk.CTkFrame):
@@ -18,76 +15,84 @@ class ReportsFrame(ctk.CTkFrame):
         self._criar_layout()
 
     def _criar_layout(self):
-        ctk.CTkLabel(
+        PageHeader(
             self,
-            text="Exporte os dados capturados para análise externa ou como evidência forense.",
-            font=("Arial", 15),
-        ).pack(anchor="w", padx=20, pady=(20, 10))
+            "Relatórios",
+            "Exporte os dados reais para investigação, documentação e análise externa.",
+        )
 
-        frame_botoes = ctk.CTkFrame(self, fg_color="transparent")
-        frame_botoes.pack(fill="x", padx=20, pady=10)
+        grid = ctk.CTkFrame(self, fg_color="transparent")
+        grid.pack(fill="x", pady=(0, 14))
+        for col in range(3):
+            grid.grid_columnconfigure(col, weight=1, uniform="report")
 
-        botoes = [
-            ("Exportar Fluxos (CSV)", self._exportar_fluxos_csv),
-            ("Exportar Alertas (CSV)", self._exportar_alertas_csv),
-            ("Exportar Relatório Geral (PDF)", self._exportar_geral_pdf),
-        ]
+        self._report_card(
+            grid, 0, "Fluxos CSV", "Exporta todo o histórico de fluxos persistido no SQLite.",
+            "Exportar fluxos", self._export_flows,
+        )
+        self._report_card(
+            grid, 1, "Alertas CSV", "Exporta classificações, severidade, motivo e contagem de eventos.",
+            "Exportar alertas", self._export_alerts,
+        )
+        self._report_card(
+            grid, 2, "Relatório PDF", "Gera uma visão geral pronta para anexar a uma análise.",
+            "Gerar PDF", self._export_pdf,
+        )
 
-        for texto, comando in botoes:
-            ctk.CTkButton(frame_botoes, text=texto, height=40, command=comando).pack(
-                anchor="w", pady=8
-            )
-
-        self.caixa_status = ctk.CTkTextbox(self, height=140)
-        self.caixa_status.pack(fill="both", expand=True, padx=20, pady=20)
-        self.caixa_status.insert(
+        panel = Panel(self, "Console de exportação")
+        panel.pack(fill="both", expand=True)
+        self.status = ctk.CTkTextbox(panel, height=260)
+        self.status.pack(fill="both", expand=True, padx=12, pady=12)
+        self.status.insert(
             "end",
-            "Dica: para exportar o relatório de investigação de um IP específico "
-            "(com linha do tempo de eventos), use o botão correspondente na tela de Alertas.\n",
+            "Os relatórios usam somente os dados registrados pelo programa.\n"
+            "Para um PDF específico de um IP, selecione o IP na tela Alertas.\n",
         )
 
-    def _log(self, mensagem):
-        self.caixa_status.insert("end", mensagem + "\n")
-        self.caixa_status.see("end")
-
-    def _exportar_fluxos_csv(self):
-        caminho = filedialog.asksaveasfilename(
-            defaultextension=".csv",
-            initialfile="fluxos.csv",
-            filetypes=[("Arquivo CSV", "*.csv")],
+    def _report_card(self, master, column, title, description, button_text, command):
+        card = Panel(master)
+        card.grid(row=0, column=column, sticky="nsew", padx=6)
+        ctk.CTkLabel(card, text=title, font=(FONT, 17, "bold")).pack(anchor="w", padx=16, pady=(18, 7))
+        ctk.CTkLabel(
+            card,
+            text=description,
+            width=225,
+            text_color=COLORS["muted"],
+            justify="left",
+            anchor="w",
+            wraplength=225,
+        ).pack(fill="x", anchor="w", padx=16, pady=(0, 18))
+        ctk.CTkButton(card, text=button_text, command=command, **primary_button()).pack(
+            anchor="w", padx=16, pady=(0, 18)
         )
-        if not caminho:
-            return
+
+    def _log(self, message):
+        self.status.insert("end", message + "\n")
+        self.status.see("end")
+
+    def _export_flows(self):
+        path = filedialog.asksaveasfilename(defaultextension=".csv", initialfile="fluxos.csv", filetypes=[("CSV", "*.csv")])
+        if not path: return
         try:
-            self.app.exportar_fluxos_csv(caminho)
-            self._log(f"Fluxos exportados para {os.path.basename(caminho)}.")
-        except Exception as erro:
-            self._log(f"[ERRO] {erro}")
+            self.app.exportar_fluxos_csv(path)
+            self._log(f"[OK] Fluxos exportados para {os.path.basename(path)}.")
+        except Exception as error:
+            self._log(f"[ERRO] {error}")
 
-    def _exportar_alertas_csv(self):
-        caminho = filedialog.asksaveasfilename(
-            defaultextension=".csv",
-            initialfile="alertas.csv",
-            filetypes=[("Arquivo CSV", "*.csv")],
-        )
-        if not caminho:
-            return
+    def _export_alerts(self):
+        path = filedialog.asksaveasfilename(defaultextension=".csv", initialfile="alertas.csv", filetypes=[("CSV", "*.csv")])
+        if not path: return
         try:
-            self.app.exportar_alertas_csv(caminho)
-            self._log(f"Alertas exportados para {os.path.basename(caminho)}.")
-        except Exception as erro:
-            self._log(f"[ERRO] {erro}")
+            self.app.exportar_alertas_csv(path)
+            self._log(f"[OK] Alertas exportados para {os.path.basename(path)}.")
+        except Exception as error:
+            self._log(f"[ERRO] {error}")
 
-    def _exportar_geral_pdf(self):
-        caminho = filedialog.asksaveasfilename(
-            defaultextension=".pdf",
-            initialfile="relatorio_geral.pdf",
-            filetypes=[("Arquivo PDF", "*.pdf")],
-        )
-        if not caminho:
-            return
+    def _export_pdf(self):
+        path = filedialog.asksaveasfilename(defaultextension=".pdf", initialfile="relatorio_geral.pdf", filetypes=[("PDF", "*.pdf")])
+        if not path: return
         try:
-            self.app.exportar_relatorio_geral_pdf(caminho)
-            self._log(f"Relatório geral exportado para {os.path.basename(caminho)}.")
-        except Exception as erro:
-            self._log(f"[ERRO] {erro}")
+            self.app.exportar_relatorio_geral_pdf(path)
+            self._log(f"[OK] Relatório gerado em {os.path.basename(path)}.")
+        except Exception as error:
+            self._log(f"[ERRO] {error}")
