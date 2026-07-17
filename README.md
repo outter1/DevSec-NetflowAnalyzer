@@ -539,11 +539,22 @@ Relatórios CSV/PDF
 
 ---
 
-## Autor
+## DEVSEC e equipe
 
-Desenvolvido por **Gabriel Bastos**.
+O **DevSec - NetFlow Analyzer** é um projeto da **DEVSEC**.
 
-Projeto criado para fins de estudo, portfólio e prática em:
+**Donos do projeto:**
+
+- Gabriel Silva Bastos;
+- Matheus Dominato.
+
+**Membros da equipe:**
+
+- Isabelle Guimarães de Andrade;
+- Nicolas Urtiaga;
+- Pedro Lages da Silva.
+
+O projeto foi criado para fins de estudo, portfólio e prática em:
 
 - Segurança da Informação;
 - Blue Team;
@@ -552,11 +563,15 @@ Projeto criado para fins de estudo, portfólio e prática em:
 - Python;
 - Desenvolvimento de Software Desktop.
 
+A relação completa de autoria e participação também está disponível em [`AUTHORS.md`](AUTHORS.md).
+
 ---
 
 ## Licença
 
-Este projeto é distribuído sob a **Licença MIT**. Isso permite usar, copiar, modificar e distribuir o software, desde que o aviso de direitos autorais e a licença sejam mantidos nas cópias ou partes substanciais do projeto.
+Este projeto é distribuído sob a **Licença MIT** em nome da **DEVSEC** e dos integrantes listados acima. Todos constam nos avisos de direitos autorais do projeto.
+
+A licença permite usar, copiar, modificar e distribuir o software, desde que os avisos de direitos autorais e os termos da licença sejam mantidos nas cópias ou partes substanciais do projeto.
 
 Consulte o arquivo [`LICENSE`](LICENSE) para ler os termos completos.
 
