@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Gabriel Silva Bastos
+
 """
 Transforma pacotes capturados (objetos Scapy) em fluxos de rede agregados
 (origem, destino, portas, protocolo, contagem de pacotes/bytes) e mantém

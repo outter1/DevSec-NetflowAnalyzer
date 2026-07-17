@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Gabriel Silva Bastos
+
 """Domínios observados e políticas de blacklist de domínio."""
 
 import threading

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Gabriel Silva Bastos
+
 """Tema escuro moderno compartilhado pela interface desktop do DevSec.
 
 A paleta segue a interface web: fundo carvão, painéis elevados, bordas discretas

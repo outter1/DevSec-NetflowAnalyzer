@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Gabriel Silva Bastos
+
 """Tela de fluxos e captura em tempo real."""
 
 import customtkinter as ctk

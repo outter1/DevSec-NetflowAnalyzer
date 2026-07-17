@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Gabriel Silva Bastos
+
 """Configurações do capturador e do motor de detecção."""
 
 import customtkinter as ctk

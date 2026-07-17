@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Gabriel Silva Bastos
+
 """Dispositivos vistos passivamente e descoberta ativa autorizada via ARP."""
 
 import socket

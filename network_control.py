@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Gabriel Silva Bastos
+
 """Controles locais de firewall usados pela interface web.
 
 O bloqueio atua no computador onde o DevSec está sendo executado. Para impor

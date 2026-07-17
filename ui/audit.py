@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Gabriel Silva Bastos
+
 """Histórico de ações realizadas pelo analista no desktop e na web."""
 
 import customtkinter as ctk

@@ -6,6 +6,7 @@
 ![Database](https://img.shields.io/badge/Database-SQLite-orange)
 ![Security](https://img.shields.io/badge/Área-Blue%20Team%20%7C%20Forense%20%7C%20Red%20Team-red)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-lightgrey)
+![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
 ---
 
@@ -538,17 +539,9 @@ Relatórios CSV/PDF
 
 ---
 
-Limitação importante
-
-Para enxergar os sites acessados por outros computadores da rede, o DevSec precisa estar no gateway/roteador, em uma máquina recebendo tráfego por porta SPAN/espelhamento ou no DNS da rede. Em um computador comum conectado a um switch, normalmente será possível enxergar apenas o próprio tráfego, broadcasts e pacotes encaminhados até ele.
-
-DoH, DoT, VPN e TLS com ECH também podem esconder os domínios. O bloqueio real no Windows Firewall precisa ser testado no seu Windows como administrador; no ambiente desenvolvido em Linux foi possivel validar as APIs, o banco e a captura de DNS/HTTP/TLS, mas não foi possivel executar o netsh do Windows.
-
----
-
 ## Autor
 
-Desenvolvido por **DevSec**.
+Desenvolvido por **Gabriel Bastos**.
 
 Projeto criado para fins de estudo, portfólio e prática em:
 
@@ -558,6 +551,14 @@ Projeto criado para fins de estudo, portfólio e prática em:
 - Redes de Computadores;
 - Python;
 - Desenvolvimento de Software Desktop.
+
+---
+
+## Licença
+
+Este projeto é distribuído sob a **Licença MIT**. Isso permite usar, copiar, modificar e distribuir o software, desde que o aviso de direitos autorais e a licença sejam mantidos nas cópias ou partes substanciais do projeto.
+
+Consulte o arquivo [`LICENSE`](LICENSE) para ler os termos completos.
 
 ---
 

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Gabriel Silva Bastos
+
 """Extração passiva de nomes de domínio a partir de pacotes de rede.
 
 São registradas somente evidências presentes no tráfego capturado:

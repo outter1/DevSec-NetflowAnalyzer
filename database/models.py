@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Gabriel Silva Bastos
+
 """
 Definições do schema SQLite do DevSec - NetFlow Analyzer.
 

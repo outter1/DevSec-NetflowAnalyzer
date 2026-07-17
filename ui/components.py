@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Gabriel Silva Bastos
+
 """Componentes visuais reutilizáveis da interface desktop."""
 
 from __future__ import annotations

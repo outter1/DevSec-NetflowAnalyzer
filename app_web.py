@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Gabriel Silva Bastos
+
 """Interface web integrada do DevSec - NetFlow Analyzer.
 
 Diferente da versão anterior, este módulo usa os mesmos componentes reais do

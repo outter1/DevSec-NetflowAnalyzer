@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Gabriel Silva Bastos
+
 """Janela principal moderna do DevSec - NetFlow Analyzer.
 
 A interface desktop usa os mesmos dados e controles reais da interface web:
