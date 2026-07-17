@@ -1,6 +1,6 @@
-# DEVSEC — Titularidade e equipe do projeto
+# DEVSEC — Projeto da KillChain
 
-O **DevSec - NetFlow Analyzer** é um projeto da **DEVSEC**.
+O **DEVSEC - NetFlow Analyzer** é um projeto desenvolvido pela empresa **KillChain**.
 
 ## Donos do projeto
 
@@ -13,7 +13,7 @@ O **DevSec - NetFlow Analyzer** é um projeto da **DEVSEC**.
 - Nicolas Urtiaga
 - Pedro Lages da Silva
 
-Todos os nomes acima são reconhecidos neste repositório como integrantes e titulares do projeto, conforme os avisos de direitos autorais presentes no arquivo `LICENSE` e nos arquivos-fonte.
+A **KillChain** e todos os nomes acima são reconhecidos neste repositório como titulares e integrantes responsáveis pelo projeto **DEVSEC**, conforme os avisos de direitos autorais presentes no arquivo `LICENSE` e nos arquivos-fonte.
 
 ## Licença
 

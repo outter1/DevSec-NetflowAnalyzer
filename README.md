@@ -539,9 +539,9 @@ Relatórios CSV/PDF
 
 ---
 
-## DEVSEC e equipe
+## KillChain, DEVSEC e equipe
 
-O **DevSec - NetFlow Analyzer** é um projeto da **DEVSEC**.
+O **DEVSEC - NetFlow Analyzer** é um projeto desenvolvido pela empresa **KillChain**.
 
 **Donos do projeto:**
 
@@ -569,7 +569,7 @@ A relação completa de autoria e participação também está disponível em [`
 
 ## Licença
 
-Este projeto é distribuído sob a **Licença MIT** em nome da **DEVSEC** e dos integrantes listados acima. Todos constam nos avisos de direitos autorais do projeto.
+Este projeto é distribuído sob a **Licença MIT** em nome da empresa **KillChain** e dos integrantes listados acima. O nome do projeto é **DEVSEC**, e todos constam nos avisos de direitos autorais do repositório.
 
 A licença permite usar, copiar, modificar e distribuir o software, desde que os avisos de direitos autorais e os termos da licença sejam mantidos nas cópias ou partes substanciais do projeto.
 

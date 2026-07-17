@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2026 DEVSEC
+# Copyright (c) 2026 KillChain
 # Copyright (c) 2026 Gabriel Silva Bastos
 # Copyright (c) 2026 Matheus Dominato
 # Copyright (c) 2026 Isabelle Guimarães de Andrade
