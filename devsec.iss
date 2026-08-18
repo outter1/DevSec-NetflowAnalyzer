@@ -12,7 +12,8 @@ OutputBaseFilename=DevSecSetup
 Compression=lzma2
 SolidCompression=yes
 PrivilegesRequired=admin
-ArchitecturesInstallIn64BitMode=x64
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
 
 ; Ícone do instalador (DevSecSetup.exe)
 SetupIconFile=assets\logos\devsec.ico
