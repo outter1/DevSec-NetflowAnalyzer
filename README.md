@@ -10,6 +10,22 @@
 
 ---
 
+## 📥 Download
+
+Não quer rodar do código-fonte? Baixe o instalador pronto para Windows:
+
+<p align="left">
+  <a href="https://drive.google.com/file/d/1jrWvNNwe7bdMditBk8dexjrOlpg-kHS1/view?usp=sharing">
+    <img src="https://img.shields.io/badge/⬇️_Baixar_instalador-DevSecSetup.exe-2f855a?style=for-the-badge" alt="Baixar instalador">
+  </a>
+</p>
+
+O instalador (`DevSecSetup.exe`) já inclui o **Npcap** e instala tudo automaticamente — só executar como administrador e seguir o assistente.
+
+> ⚠️ **Aviso do Windows/antivírus:** como o executável não é assinado digitalmente, é normal o SmartScreen ou o antivírus do navegador avisarem antes do download. Isso acontece porque o app pede permissão de administrador e mexe em captura de pacotes e regras de firewall — comportamento comum de ferramentas de segurança, mas que aciona heurísticas de proteção. Se o download for bloqueado, escolha "manter mesmo assim" no navegador.
+
+---
+
 ## Visão geral
 
 O **DevSec - NetFlow Analyzer** é uma plataforma desktop e web de análise de tráfego de rede desenvolvida em **Python**, com foco em **Blue Team**, **Forense Digital**, **Redes** e **Resposta a Incidentes**.
@@ -120,7 +136,6 @@ Na tela de alertas, o analista pode:
 - exportar relatório de investigação.
 
 ---
-
 
 ### Interface web integrada
 
@@ -306,7 +321,9 @@ A persistência foi otimizada para evitar travamentos na interface, usando:
 
 ---
 
-## Instalação
+## Instalação (a partir do código-fonte)
+
+Prefere rodar direto do Python em vez do instalador? Siga os passos abaixo.
 
 ### 1. Clone o repositório
 
@@ -398,187 +415,19 @@ Variáveis opcionais:
 | `DEVSEC_WEB_HOST` | Endereço do servidor web | `127.0.0.1` |
 | `DEVSEC_WEB_PORT` | Porta HTTP | `5000` |
 | `DEVSEC_WEB_SECRET` | Chave persistente da sessão Flask | gerada ao iniciar |
-| `DEVSEC_DB_PATH` | Caminho de outro banco SQLite | `devsec_netflow.db` |
-| `DEVSEC_AUTO_CAPTURE` | Iniciar captura ao abrir | `1` |
-
-
-## Requisitos para captura real
-
-### Windows
-
-Para capturar pacotes no Windows, é necessário instalar o **Npcap**.
-
-Durante a instalação, marque a opção:
-
-```text
-Install Npcap in WinPcap API-compatible Mode
-```
-
-Também é recomendado executar o projeto como Administrador.
-
----
-
-### Linux
-
-No Linux, instale as dependências de captura:
-
-```bash
-sudo apt install libpcap-dev tcpdump python3-tk
-```
-
-Depois execute com permissão:
-
-```bash
-sudo .venv/bin/python main.py
-```
-
----
-
-## Bloqueio de IP
-
-O bloqueio real de IP usa o **Windows Firewall** (`netsh advfirewall`) no Windows e `iptables`/`ip6tables` quando disponível no Linux.
-
-Exemplo de ação realizada pelo sistema:
-
-```bash
-netsh advfirewall firewall add rule name="DevSec Block IN 192.168.0.50" dir=in action=block remoteip=192.168.0.50
-```
-
-Esse recurso precisa de permissão de Administrador.
-
-No Linux, as regras exigem `iptables` ou `ip6tables` e privilégios administrativos.
-
----
-
-## Exemplo de fluxo capturado
-
-| IP Origem | IP Destino | Porta Origem | Porta Destino | Protocolo | Pacotes | Bytes | Último |
-|---|---|---:|---:|---|---:|---:|---|
-| 192.168.0.10 | 192.168.0.1 | 33592 | 8080 | TCP | 1 | 2142 | 15:58:03 |
-| 192.168.0.35 | 8.8.8.8 | 6094 | 53 | UDP | 3 | 3237 | 15:58:04 |
-| 10.0.0.8 | 1.1.1.1 | 60046 | 443 | TCP | 5 | 1364 | 15:58:05 |
-
----
-
-## Exemplo de alerta
-
-```text
-[21:13:19] [ALTO] Tráfego SMB detectado: 192.168.0.168 -> 192.168.0.156:445
-[21:13:22] [MÉDIO] Conexão SSH detectada: 192.168.0.12 -> 192.168.0.168:22
-[21:13:30] [CRÍTICO] Possível port scan detectado: 192.168.0.20 acessou múltiplas portas em curto período
-```
-
----
-
-## Fluxo de uso
-
-```text
-1. Abrir o DevSec
-2. Iniciar captura pela barra superior ou pela tela Fluxos
-3. Observar fluxos em tempo real
-4. Aplicar filtros por IP, porta ou protocolo
-5. Verificar alertas gerados
-6. Classificar IPs suspeitos
-7. Adicionar IPs confiáveis à whitelist
-8. Bloquear IPs maliciosos quando necessário
-9. Exportar relatório para investigação
-```
-
----
-
-## Casos de uso
-
-O DevSec pode ser usado para:
-
-- estudar análise de tráfego;
-- demonstrar conceitos de NetFlow;
-- investigar conexões suspeitas;
-- testar detecção de port scan;
-- criar relatórios de segurança;
-- compor portfólio em cibersegurança;
-- simular uma ferramenta de Blue Team;
-- apoiar projetos acadêmicos ou TCC.
-
----
-
-## Próximas melhorias
-
-- Empacotar o projeto com PyInstaller;
-- Gerar instalador para Windows;
-- Adicionar autenticação de analistas;
-- Criar gráficos no Dashboard;
-- Adicionar suporte alternativo a `nftables`;
-- Integrar listas de IPs maliciosos conhecidos;
-- Adicionar suporte a DNS sobre HTTPS por integração com gateway/proxy autorizado;
-- Adicionar geolocalização de IP público;
-- Criar timeline forense por IP;
-- Exportar evidências em formato mais completo.
-
----
-
-## Status do projeto
-
-O projeto está funcional e em desenvolvimento contínuo.
-
-Versão atual:
-
-```text
-Interface desktop funcional
-Interface web integrada
-Captura real com Scapy
-Persistência em SQLite
-Filtros de investigação
-Alertas de segurança
-Classificação de IPs
-Whitelist
-Bloqueio manual no firewall local
-Blacklist de IPs e domínios
-Histórico recente de domínios observados
-Relatórios CSV/PDF
-```
-
----
-
-## KillChain, DEVSEC e equipe
-
-O **DEVSEC - NetFlow Analyzer** é um projeto desenvolvido pela empresa **KillChain**.
-
-**Donos do projeto:**
-
-- Gabriel Silva Bastos;
-- Matheus Dominato.
-
-**Membros da equipe:**
-
-- Isabelle Guimarães de Andrade;
-- Nicolas Urtiaga;
-- Pedro Lages da Silva.
-
-O projeto foi criado para fins de estudo, portfólio e prática em:
-
-- Segurança da Informação;
-- Blue Team;
-- Forense Digital;
-- Redes de Computadores;
-- Python;
-- Desenvolvimento de Software Desktop.
-
-A relação completa de autoria e participação também está disponível em [`AUTHORS.md`](AUTHORS.md).
 
 ---
 
 ## Licença
 
-Este projeto é distribuído sob a **Licença MIT** em nome da empresa **KillChain** e dos integrantes listados acima. O nome do projeto é **DEVSEC**, e todos constam nos avisos de direitos autorais do repositório.
+O projeto é disponibilizado sob a **Licença MIT**. O uso, a cópia, a modificação e a distribuição devem preservar os avisos de direitos autorais e os termos da licença.
 
-A licença permite usar, copiar, modificar e distribuir o software, desde que os avisos de direitos autorais e os termos da licença sejam mantidos nas cópias ou partes substanciais do projeto.
+## Autores
 
-Consulte o arquivo [`LICENSE`](LICENSE) para ler os termos completos.
+Projeto desenvolvido pela **KillChain**.
 
----
-
-## Aviso
-
-Este projeto deve ser utilizado apenas em redes próprias, ambientes autorizados ou laboratórios de estudo.
-
-O uso da ferramenta para monitorar, capturar ou bloquear tráfego em redes de terceiros sem autorização pode violar leis e políticas de segurança.
+- Gabriel Silva Bastos
+- Matheus Dominato
+- Isabelle Guimarães de Andrade
+- Nicolas Urtiaga
+- Pedro Lages da Silva
