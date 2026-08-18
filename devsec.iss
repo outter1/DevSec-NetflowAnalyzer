@@ -1,5 +1,4 @@
 ; Script do Inno Setup para o DevSec - NetFlow Analyzer
-; Compile com o Inno Setup Compiler (jrsoftware.org) depois de gerar dist\DevSec com o PyInstaller.
 
 [Setup]
 AppId={{B6E4B6C0-3F7C-4C7A-9A0E-DEVSEC000001}}
@@ -14,34 +13,32 @@ Compression=lzma2
 SolidCompression=yes
 PrivilegesRequired=admin
 ArchitecturesInstallIn64BitMode=x64
-; Descomente e aponte para um .ico real quando tiver um:
-; SetupIconFile=assets\logos\devsec.ico
+
+; Ícone do instalador (DevSecSetup.exe)
+SetupIconFile=assets\logos\devsec.ico
 
 [Languages]
 Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortuguese.isl"
 
-[Files]
-; Copia tudo que o PyInstaller gerou em modo pasta (--onedir).
-; Se usar --onefile, troque por: Source: "dist\DevSec.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "dist\DevSec\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-
-[Icons]
-Name: "{group}\DevSec NetFlow Analyzer"; Filename: "{app}\DevSec.exe"
-Name: "{group}\Desinstalar DevSec"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\DevSec NetFlow Analyzer"; Filename: "{app}\DevSec.exe"; Tasks: desktopicon
-
 [Tasks]
 Name: "desktopicon"; Description: "Criar atalho na área de trabalho"; GroupDescription: "Atalhos adicionais:"
 
-[Run]
-; Abre o app ao final da instalação (opcional).
-Filename: "{app}\DevSec.exe"; Description: "Abrir DevSec agora"; Flags: nowait postinstall skipifsilent
+[Files]
+; Executável gerado na pasta dist
+Source: "dist\DevSec.exe"; DestDir: "{app}"; Flags: ignoreversion
 
-; Se você optar por embutir e rodar o instalador do Npcap automaticamente,
-; baixe o instalador oficial (npcap-x.xx.exe) no site do Npcap, coloque-o em
-; uma pasta "redist\" do projeto e descomente as linhas abaixo. Antes disso,
-; confira a licença do Npcap para redistribuição.
-; [Files]
-; Source: "redist\npcap-installer.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
-; [Run]
-; Filename: "{tmp}\npcap-installer.exe"; Parameters: "/S"; StatusMsg: "Instalando Npcap..."; Flags: waituntilterminated
+; Instalador do Npcap
+Source: "redist\npcap-1.88.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
+
+[Icons]
+; Os atalhos usarão automaticamente o ícone embutido no DevSec.exe pelo PyInstaller
+Name: "{group}\DevSec NetFlow Analyzer"; Filename: "{app}\DevSec.exe"; IconFilename: "{app}\DevSec.exe"
+Name: "{group}\Desinstalar DevSec"; Filename: "{uninstallexe}"
+Name: "{autodesktop}\DevSec NetFlow Analyzer"; Filename: "{app}\DevSec.exe"; Tasks: desktopicon; IconFilename: "{app}\DevSec.exe"
+
+[Run]
+; 1. Instalação silenciosa do Npcap
+Filename: "{tmp}\npcap-1.88.exe"; Parameters: "/S"; StatusMsg: "Instalando Npcap..."; Flags: waituntilterminated
+
+; 2. Abrir o app ao concluir
+Filename: "{app}\DevSec.exe"; Description: "Abrir DevSec agora"; Flags: nowait postinstall skipifsilent
