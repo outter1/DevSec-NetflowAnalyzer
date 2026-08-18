@@ -147,6 +147,66 @@ def selected_values(tree):
     return values or None
 
 
+def ask_confirm(master, title, message, confirm_text="Confirmar", cancel_text="Cancelar", danger=True):
+    """Mostra um diálogo modal de confirmação e retorna True/False.
+
+    Usado antes de ações irreversíveis ou sensíveis (bloquear IP no firewall,
+    remover uma política de domínio, parar a captura, etc.).
+    """
+    result = {"ok": False}
+    dialog = ctk.CTkToplevel(master)
+    dialog.title(title)
+    dialog.geometry("420x190")
+    dialog.resizable(False, False)
+    dialog.configure(fg_color=COLORS["panel"])
+    dialog.transient(master.winfo_toplevel())
+    dialog.grab_set()
+
+    ctk.CTkLabel(dialog, text=title, font=(FONT, 15, "bold")).pack(anchor="w", padx=20, pady=(20, 6))
+    ctk.CTkLabel(
+        dialog, text=message, text_color=COLORS["muted"], font=(FONT, 12),
+        justify="left", wraplength=380,
+    ).pack(anchor="w", padx=20, fill="x")
+
+    button_row = ctk.CTkFrame(dialog, fg_color="transparent")
+    button_row.pack(side="bottom", fill="x", padx=20, pady=18)
+
+    def _confirm():
+        result["ok"] = True
+        dialog.destroy()
+
+    def _cancel():
+        result["ok"] = False
+        dialog.destroy()
+
+    from ui.theme import danger_button, dark_button, primary_button
+    ctk.CTkButton(button_row, text=cancel_text, command=_cancel, **dark_button()).pack(side="right")
+    ctk.CTkButton(
+        button_row, text=confirm_text, command=_confirm,
+        **(danger_button() if danger else primary_button()),
+    ).pack(side="right", padx=(0, 8))
+
+    dialog.protocol("WM_DELETE_WINDOW", _cancel)
+    dialog.wait_window()
+    return result["ok"]
+
+
+def set_button_busy(button, busy, busy_text=None):
+    """Alterna um CTkButton entre estado normal e 'processando...'.
+
+    Guarda o texto/estado originais no próprio widget para poder restaurá-los.
+    """
+    if busy:
+        if not hasattr(button, "_devsec_original_text"):
+            button._devsec_original_text = button.cget("text")
+        button.configure(text=busy_text or "Processando...", state="disabled")
+    else:
+        original = getattr(button, "_devsec_original_text", None)
+        if original is not None:
+            button.configure(text=original)
+        button.configure(state="normal")
+
+
 def severity_tag(value):
     text = str(value or "").upper()
     if "CRÍT" in text or "BLOQUE" in text:

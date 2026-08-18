@@ -34,6 +34,7 @@ from network_control import FirewallController
 from reports import export as relatorios
 from ui.alerts import AlertsFrame
 from ui.audit import AuditFrame
+from ui.components import ask_confirm, set_button_busy
 from ui.dashboard import DashboardFrame
 from ui.devices import DevicesFrame
 from ui.domains import DomainsFrame
@@ -232,12 +233,14 @@ class MainWindow(ctk.CTk):
         ctk.CTkButton(
             controls, text="Usar interface", width=115, command=self._salvar_interface_topbar, **dark_button()
         ).pack(side="left", padx=5)
-        ctk.CTkButton(
-            controls, text="Iniciar", width=88, command=self.iniciar_captura, **primary_button()
-        ).pack(side="left", padx=5)
-        ctk.CTkButton(
-            controls, text="Parar", width=82, command=self.parar_captura, **danger_button()
-        ).pack(side="left", padx=5)
+        self.btn_iniciar = ctk.CTkButton(
+            controls, text="Iniciar", width=88, command=self._iniciar_captura_ui, **primary_button()
+        )
+        self.btn_iniciar.pack(side="left", padx=5)
+        self.btn_parar = ctk.CTkButton(
+            controls, text="Parar", width=82, command=self._parar_captura_ui, **danger_button()
+        )
+        self.btn_parar.pack(side="left", padx=5)
 
         status = ctk.CTkFrame(
             controls, fg_color=COLORS["panel"], corner_radius=10,
@@ -295,6 +298,49 @@ class MainWindow(ctk.CTk):
         if was_active:
             self.auditar("CAPTURA_PARADA", f"interface={self.captura.interface or 'automática'}")
         return was_active
+
+    def _iniciar_captura_ui(self):
+        """Wrapper de clique: evita duplo início, mostra estado 'processando' e avisa sobre permissões."""
+        if self.captura.ativo:
+            return
+        set_button_busy(self.btn_iniciar, True, "Iniciando...")
+        self.btn_parar.configure(state="disabled")
+
+        def _finish():
+            set_button_busy(self.btn_iniciar, False)
+            started = self.iniciar_captura()
+            self._atualizar_status_global()
+            if started:
+                self.registrar_alerta_ui("[INFO] Captura de tráfego iniciada.")
+            else:
+                self.registrar_alerta_ui(
+                    "[AVISO] Não foi possível iniciar a captura. Verifique permissões de administrador "
+                    "e se o Npcap/libpcap está instalado."
+                )
+
+        self.after(150, _finish)
+
+    def _parar_captura_ui(self):
+        """Wrapper de clique: confirma antes de interromper uma captura em andamento."""
+        if not self.captura.ativo:
+            return
+        if not ask_confirm(
+            self, "Parar captura de tráfego",
+            "A captura em andamento será interrompida e novos fluxos deixarão de ser registrados "
+            "até que você a inicie novamente. Deseja continuar?",
+            confirm_text="Parar captura",
+        ):
+            return
+        set_button_busy(self.btn_parar, True, "Parando...")
+        self.btn_iniciar.configure(state="disabled")
+
+        def _finish():
+            set_button_busy(self.btn_parar, False)
+            self.parar_captura()
+            self._atualizar_status_global()
+            self.registrar_alerta_ui("[INFO] Captura de tráfego interrompida.")
+
+        self.after(150, _finish)
 
     def _salvar_interface_topbar(self):
         selected = self.interface_select.get()
@@ -424,6 +470,13 @@ class MainWindow(ctk.CTk):
         self.capture_state.configure(text="Ativa" if active else "Parada")
         total_queue = self.fila_fluxos.qsize() + self.fila_dominios.qsize() + self.fila_persistencia.qsize()
         self.queue_label.configure(text=f"Filas: {total_queue}  •  Banco: SQLite")
+        # Mantém os botões Iniciar/Parar coerentes com o estado real da captura,
+        # evitando cliques redundantes (ex.: "Iniciar" com captura já ativa).
+        # Ignora essa sincronização enquanto um botão está em transição ("Iniciando...").
+        if not hasattr(self.btn_iniciar, "_devsec_original_text"):
+            self.btn_iniciar.configure(state="disabled" if active else "normal")
+        if not hasattr(self.btn_parar, "_devsec_original_text"):
+            self.btn_parar.configure(state="normal" if active else "disabled")
 
     # ================================================================== #
     # Persistência em lote

@@ -12,7 +12,10 @@ import os
 from tkinter import filedialog
 import customtkinter as ctk
 
-from ui.components import PageHeader, Panel, clear_table, create_table, selected_values, severity_tag
+from ui.components import (
+    PageHeader, Panel, ask_confirm, clear_table, create_table,
+    selected_values, set_button_busy, severity_tag,
+)
 from ui.theme import COLORS, dark_button, danger_button, primary_button, success_button
 
 
@@ -43,10 +46,11 @@ class AlertsFrame(ctk.CTkFrame):
             ("Exportar PDF", self._export_pdf, dark_button()),
             ("Atualizar", lambda: self.recarregar(True), primary_button()),
         ]
+        self._action_buttons = {}
         for index, (text, command, style) in enumerate(buttons):
-            ctk.CTkButton(grid, text=text, command=command, **style).grid(
-                row=index // 4, column=index % 4, sticky="ew", padx=5, pady=5
-            )
+            btn = ctk.CTkButton(grid, text=text, command=command, **style)
+            btn.grid(row=index // 4, column=index % 4, sticky="ew", padx=5, pady=5)
+            self._action_buttons[text] = btn
 
         self.tabs = ctk.CTkTabview(
             self,
@@ -76,11 +80,22 @@ class AlertsFrame(ctk.CTkFrame):
         host, self.table = create_table(alerts_tab, columns, headings, widths, height=13)
         host.pack(fill="both", expand=True, padx=10, pady=10)
         self.table.bind("<<TreeviewSelect>>", self._show_details)
+        self.table.bind("<<TreeviewSelect>>", self._sync_action_states, add="+")
         self.table.bind("<Double-1>", lambda _event: self.tabs.set("Contexto selecionado"))
 
         self.info = ctk.CTkTextbox(context_tab)
         self.info.pack(fill="both", expand=True, padx=10, pady=10)
         self.info.insert("end", "Selecione um IP na tabela para ver a linha do tempo recente.\n")
+
+        self._sync_action_states()
+
+    def _sync_action_states(self, _event=None):
+        """As ações que dependem de um IP selecionado ficam desabilitadas até haver seleção."""
+        has_selection = bool(selected_values(self.table))
+        for text, btn in self._action_buttons.items():
+            if text in ("Atualizar",):
+                continue
+            btn.configure(state="normal" if has_selection else "disabled")
 
     def recarregar(self, force=False):
         alerts = self.app.db.listar_alertas()
@@ -105,6 +120,7 @@ class AlertsFrame(ctk.CTkFrame):
         if selected_item:
             self.table.selection_set(selected_item)
         self._signature = signature
+        self._sync_action_states()
 
     def _selected_ip(self, warn=True):
         values = selected_values(self.table)
@@ -143,6 +159,7 @@ class AlertsFrame(ctk.CTkFrame):
         ip = self._selected_ip()
         if ip:
             self.app.classificar_ip_critico(ip)
+            self.app.registrar_alerta_ui(f"[AVISO] IP {ip} marcado como crítico. Considere bloqueá-lo se confirmado como malicioso.")
             self.recarregar(True)
 
     def _whitelist(self):
@@ -159,15 +176,39 @@ class AlertsFrame(ctk.CTkFrame):
 
     def _block(self):
         ip = self._selected_ip()
-        if ip:
-            self.app.bloquear_ip_selecionado(ip)
-            self.recarregar(True)
+        if not ip:
+            return
+        if not ask_confirm(
+            self, "Bloquear IP no firewall",
+            f"Isso cria uma regra real de bloqueio para {ip} no firewall local. Continuar?",
+            confirm_text="Bloquear IP",
+        ):
+            return
+        btn = self._action_buttons.get("Bloquear IP")
+        if btn:
+            set_button_busy(btn, True, "Bloqueando...")
+        self.app.bloquear_ip_selecionado(ip)
+        if btn:
+            set_button_busy(btn, False)
+        self.recarregar(True)
 
     def _unblock(self):
         ip = self._selected_ip()
-        if ip:
-            self.app.desbloquear_ip_selecionado(ip)
-            self.recarregar(True)
+        if not ip:
+            return
+        if not ask_confirm(
+            self, "Remover bloqueio do firewall",
+            f"A regra de bloqueio de {ip} será removida e o tráfego voltará a ser permitido. Continuar?",
+            confirm_text="Remover bloqueio",
+        ):
+            return
+        btn = self._action_buttons.get("Desbloquear")
+        if btn:
+            set_button_busy(btn, True, "Removendo...")
+        self.app.desbloquear_ip_selecionado(ip)
+        if btn:
+            set_button_busy(btn, False)
+        self.recarregar(True)
 
     def _export_pdf(self):
         ip = self._selected_ip()

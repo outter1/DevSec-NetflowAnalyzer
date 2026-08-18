@@ -10,7 +10,10 @@
 
 import customtkinter as ctk
 
-from ui.components import PageHeader, Panel, clear_table, create_table, selected_values
+from ui.components import (
+    PageHeader, Panel, ask_confirm, clear_table, create_table,
+    selected_values, set_button_busy,
+)
 from ui.theme import dark_button, danger_button, primary_button
 
 
@@ -36,7 +39,8 @@ class IPPolicyFrame(ctk.CTkFrame):
         self.ip_entry.pack(side="left", padx=(0, 8))
         self.reason_entry = ctk.CTkEntry(row, placeholder_text="Motivo da classificação", width=430)
         self.reason_entry.pack(side="left", fill="x", expand=True, padx=8)
-        ctk.CTkButton(row, text="Adicionar e alertar", command=self._add, **primary_button()).pack(side="right", padx=(8, 0))
+        self.add_button = ctk.CTkButton(row, text="Adicionar e alertar", command=self._add, **primary_button())
+        self.add_button.pack(side="right", padx=(8, 0))
         self.ip_entry.bind("<Return>", lambda _e: self._add())
 
         split = ctk.CTkFrame(self, fg_color="transparent")
@@ -55,8 +59,11 @@ class IPPolicyFrame(ctk.CTkFrame):
         host.pack(fill="both", expand=True, padx=12, pady=(12, 6))
         actions = ctk.CTkFrame(black_panel, fg_color="transparent")
         actions.pack(fill="x", padx=12, pady=(4, 12))
-        ctk.CTkButton(actions, text="Bloquear selecionado", command=self._block, **danger_button()).pack(side="left")
-        ctk.CTkButton(actions, text="Remover da blacklist", command=self._remove, **dark_button()).pack(side="right")
+        self.block_button = ctk.CTkButton(actions, text="Bloquear selecionado", command=self._block, **danger_button())
+        self.block_button.pack(side="left")
+        self.remove_button = ctk.CTkButton(actions, text="Remover da blacklist", command=self._remove, **dark_button())
+        self.remove_button.pack(side="right")
+        self.black_table.bind("<<TreeviewSelect>>", lambda _e: self._sync_button_states())
 
         blocked_panel = Panel(split, "Bloqueados no firewall")
         blocked_panel.grid(row=0, column=1, sticky="nsew", padx=(7, 0))
@@ -67,8 +74,20 @@ class IPPolicyFrame(ctk.CTkFrame):
         host.pack(fill="both", expand=True, padx=12, pady=(12, 6))
         actions2 = ctk.CTkFrame(blocked_panel, fg_color="transparent")
         actions2.pack(fill="x", padx=12, pady=(4, 12))
-        ctk.CTkButton(actions2, text="Remover bloqueio", command=self._unblock, **dark_button()).pack(side="left")
+        self.unblock_button = ctk.CTkButton(actions2, text="Remover bloqueio", command=self._unblock, **dark_button())
+        self.unblock_button.pack(side="left")
         ctk.CTkButton(actions2, text="Atualizar", width=90, command=lambda: self.recarregar(True), **primary_button()).pack(side="right")
+        self.blocked_table.bind("<<TreeviewSelect>>", lambda _e: self._sync_button_states())
+
+        self._sync_button_states()
+
+    def _sync_button_states(self):
+        """Habilita/desabilita as ações conforme haja (ou não) um item selecionado nas tabelas."""
+        has_black = bool(selected_values(self.black_table))
+        has_blocked = bool(selected_values(self.blocked_table))
+        self.block_button.configure(state="normal" if has_black else "disabled")
+        self.remove_button.configure(state="normal" if has_black else "disabled")
+        self.unblock_button.configure(state="normal" if has_blocked else "disabled")
 
     def recarregar(self, force=False):
         black = self.app.db.listar_ip_blacklist()
@@ -86,10 +105,14 @@ class IPPolicyFrame(ctk.CTkFrame):
         for item in blocked:
             self.blocked_table.insert("", "end", values=(item["ip"], item["bloqueado_em"]), tags=("critical",))
         self._signature = signature
+        self._sync_button_states()
 
     def _add(self):
         ip = self.ip_entry.get().strip()
         reason = self.reason_entry.get().strip() or "Adicionado manualmente à blacklist"
+        if not ip:
+            self.app.registrar_alerta_ui("[AVISO] Informe um endereço IP antes de adicionar à blacklist.")
+            return
         if self.app.adicionar_ip_blacklist(ip, reason):
             self.ip_entry.delete(0, "end")
             self.reason_entry.delete(0, "end")
@@ -111,15 +134,51 @@ class IPPolicyFrame(ctk.CTkFrame):
 
     def _block(self):
         ip = self._selected_black()
-        if ip: self.app.bloquear_ip_selecionado(ip); self.recarregar(True)
+        if not ip:
+            return
+        if not ask_confirm(
+            self, "Bloquear IP no firewall",
+            f"Isso cria uma regra real de bloqueio para {ip} no firewall local deste computador. "
+            "O tráfego desse endereço passará a ser recusado até que o bloqueio seja removido. Continuar?",
+            confirm_text="Bloquear IP",
+        ):
+            return
+        set_button_busy(self.block_button, True, "Bloqueando...")
+        self.app.bloquear_ip_selecionado(ip)
+        set_button_busy(self.block_button, False)
+        self.recarregar(True)
 
     def _remove(self):
         ip = self._selected_black()
-        if ip: self.app.remover_ip_blacklist(ip); self.recarregar(True)
+        if not ip:
+            return
+        if not ask_confirm(
+            self, "Remover da blacklist",
+            f"O IP {ip} deixará de ser classificado como suspeito. Isso NÃO remove um bloqueio já "
+            "ativo no firewall, se houver — use \"Remover bloqueio\" para isso. Continuar?",
+            confirm_text="Remover",
+        ):
+            return
+        set_button_busy(self.remove_button, True, "Removendo...")
+        self.app.remover_ip_blacklist(ip)
+        set_button_busy(self.remove_button, False)
+        self.recarregar(True)
 
     def _unblock(self):
         ip = self._selected_blocked()
-        if ip: self.app.desbloquear_ip_selecionado(ip); self.recarregar(True)
+        if not ip:
+            return
+        if not ask_confirm(
+            self, "Remover bloqueio do firewall",
+            f"A regra de bloqueio de {ip} será removida do firewall local e o tráfego desse IP "
+            "voltará a ser permitido. Continuar?",
+            confirm_text="Remover bloqueio",
+        ):
+            return
+        set_button_busy(self.unblock_button, True, "Removendo...")
+        self.app.desbloquear_ip_selecionado(ip)
+        set_button_busy(self.unblock_button, False)
+        self.recarregar(True)
 
     def atualizar_automatico(self):
         self.recarregar()

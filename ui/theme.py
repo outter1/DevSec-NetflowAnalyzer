@@ -222,6 +222,16 @@ def secondary_button():
     return dark_button()
 
 
+def warning_button():
+    return {
+        "fg_color": "#3A2A08",
+        "hover_color": "#4E390D",
+        "text_color": COLORS["yellow_soft"],
+        "border_width": 1,
+        "border_color": "#6B4E14",
+    }
+
+
 def success_button():
     return {
         "fg_color": "#153922",
